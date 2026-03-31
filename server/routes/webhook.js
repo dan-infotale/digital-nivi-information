@@ -5,6 +5,21 @@ const Conversation = require('../models/Conversation');
 
 const router = express.Router();
 
+// Deduplicate: WhatsApp can send the same webhook multiple times
+const processedMessages = new Set();
+function isDuplicate(messageId) {
+  if (processedMessages.has(messageId)) return true;
+  processedMessages.add(messageId);
+  // Clean up old entries every 1000 messages
+  if (processedMessages.size > 1000) {
+    const arr = [...processedMessages];
+    arr.splice(0, 500);
+    processedMessages.clear();
+    arr.forEach(id => processedMessages.add(id));
+  }
+  return false;
+}
+
 // WhatsApp webhook verification (GET)
 router.get('/', (req, res) => {
   const mode = req.query['hub.mode'];
@@ -25,6 +40,10 @@ router.post('/', async (req, res) => {
 
   const messages = extractMessages(req.body);
   for (const msg of messages) {
+    if (isDuplicate(msg.messageId)) {
+      console.log(`[Webhook] Skipping duplicate message ${msg.messageId}`);
+      continue;
+    }
     try {
       await handleIncomingMessage(msg);
     } catch (error) {
