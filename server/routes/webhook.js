@@ -20,6 +20,21 @@ function isDuplicate(messageId) {
   return false;
 }
 
+// Per-phone-number lock to prevent concurrent processing for the same user
+const phoneLocks = new Map();
+async function withPhoneLock(phoneNumber, fn) {
+  const prev = phoneLocks.get(phoneNumber) || Promise.resolve();
+  const current = prev.then(fn, fn);
+  phoneLocks.set(phoneNumber, current);
+  try {
+    return await current;
+  } finally {
+    if (phoneLocks.get(phoneNumber) === current) {
+      phoneLocks.delete(phoneNumber);
+    }
+  }
+}
+
 // WhatsApp webhook verification (GET)
 router.get('/', (req, res) => {
   const mode = req.query['hub.mode'];
@@ -44,11 +59,14 @@ router.post('/', async (req, res) => {
       console.log(`[Webhook] Skipping duplicate message ${msg.messageId}`);
       continue;
     }
-    try {
-      await handleIncomingMessage(msg);
-    } catch (error) {
-      console.error(`[Webhook] Error handling message from ${msg.from}:`, error.message);
-    }
+    // Serialize processing per phone number to prevent race conditions
+    withPhoneLock(msg.from, async () => {
+      try {
+        await handleIncomingMessage(msg);
+      } catch (error) {
+        console.error(`[Webhook] Error handling message from ${msg.from}:`, error.message);
+      }
+    });
   }
 });
 
@@ -67,6 +85,15 @@ async function handleIncomingMessage({ from, text, messageId }) {
       niviSessionId: sessionId,
     });
     isNewSession = true;
+  }
+
+  // DB-level dedup: check if this messageId was already saved
+  const alreadyProcessed = conversation.messages.some(
+    m => m.whatsappMessageId === messageId
+  );
+  if (alreadyProcessed) {
+    console.log(`[Webhook] Skipping already-processed message ${messageId}`);
+    return;
   }
 
   // Save incoming message
