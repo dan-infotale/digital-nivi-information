@@ -62,18 +62,22 @@ async function sendToNivi(userId, sessionId, messageText) {
           try {
             const data = JSON.parse(dataStr);
             // Extract text from various possible response formats
+            // content.parts = full accumulated text (replace)
+            // delta.* = incremental text (append)
             if (data.content?.parts) {
+              let contentText = '';
               for (const part of data.content.parts) {
-                if (part.text) fullText += part.text;
+                if (part.text) contentText += part.text;
               }
-            } else if (data.text) {
-              fullText += data.text;
+              if (contentText) fullText = contentText;
             } else if (data.delta?.text) {
               fullText += data.delta.text;
             } else if (data.delta?.parts) {
               for (const part of data.delta.parts) {
                 if (part.text) fullText += part.text;
               }
+            } else if (data.text) {
+              fullText += data.text;
             }
           } catch {
             // Not JSON, might be plain text
@@ -91,9 +95,11 @@ async function sendToNivi(userId, sessionId, messageText) {
           try {
             const data = JSON.parse(dataStr);
             if (data.content?.parts) {
+              let contentText = '';
               for (const part of data.content.parts) {
-                if (part.text) fullText += part.text;
+                if (part.text) contentText += part.text;
               }
+              if (contentText) fullText = contentText;
             } else if (data.text) {
               fullText += data.text;
             }
