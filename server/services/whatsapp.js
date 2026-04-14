@@ -5,7 +5,42 @@ const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
 
 const MAX_LENGTH = 4096;
 
+// Clean Nivi's markdown formatting for WhatsApp
+function cleanForWhatsApp(text) {
+  // Remove stray leading asterisks before numbered items (e.g. "*1." → "1.")
+  text = text.replace(/\*(\d+\.)/g, '$1');
+  // Convert markdown bold **text** or *text* to WhatsApp bold *text*
+  // First handle double asterisks
+  text = text.replace(/\*\*(.+?)\*\*/g, '*$1*');
+  // Remove unmatched/orphan asterisks (not part of a *bold* pair)
+  // Count asterisks — if odd number, strip all non-paired ones
+  const parts = text.split('*');
+  if (parts.length > 1) {
+    // Rebuild: keep matched pairs, strip orphans
+    let result = '';
+    let i = 0;
+    while (i < parts.length) {
+      result += parts[i];
+      if (i + 1 < parts.length) {
+        // Check if the next segment looks like a bold word/phrase (non-empty, no newlines)
+        const candidate = parts[i + 1];
+        if (candidate && !candidate.includes('\n') && candidate.trim().length > 0) {
+          result += '*' + candidate + '*';
+          i += 2;
+        } else {
+          i += 1;
+        }
+      } else {
+        i += 1;
+      }
+    }
+    text = result;
+  }
+  return text.trim();
+}
+
 async function sendMessage(to, text) {
+  text = cleanForWhatsApp(text);
   // Split into chunks if text exceeds WhatsApp's 4096 char limit
   const chunks = [];
   for (let i = 0; i < text.length; i += MAX_LENGTH) {
@@ -63,4 +98,4 @@ function extractMessages(body) {
   return messages;
 }
 
-module.exports = { sendMessage, extractMessages };
+module.exports = { sendMessage, extractMessages, cleanForWhatsApp };
