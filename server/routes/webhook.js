@@ -70,12 +70,29 @@ router.post('/', async (req, res) => {
   }
 });
 
+async function sendErrorToUser(conversation, from, errorMsg) {
+  try {
+    conversation.messages.push({ direction: 'outgoing', body: errorMsg });
+    await conversation.save();
+    await sendMessage(from, errorMsg);
+  } catch (sendErr) {
+    console.error(`[Webhook] Failed to send error message to ${from}:`, sendErr.message);
+  }
+}
+
 async function handleIncomingMessage({ from, text, messageId }) {
   console.log(`[Webhook] Message from ${from}: ${text}`);
 
   // Find or create conversation for this phone number
-  let conversation = await Conversation.findOne({ phoneNumber: from });
+  let conversation;
   let isNewSession = false;
+
+  try {
+    conversation = await Conversation.findOne({ phoneNumber: from });
+  } catch (error) {
+    console.error(`[Webhook] DB lookup failed for ${from}:`, error.message);
+    return;
+  }
 
   if (!conversation) {
     const { userId, sessionId } = generateIds();
@@ -103,7 +120,13 @@ async function handleIncomingMessage({ from, text, messageId }) {
     whatsappMessageId: messageId,
   });
   conversation.lastActivity = new Date();
-  await conversation.save();
+
+  try {
+    await conversation.save();
+  } catch (error) {
+    console.error(`[Webhook] Failed to save incoming message for ${from}:`, error.message);
+    return;
+  }
 
   // Create Nivi session if new
   if (isNewSession) {
@@ -111,6 +134,8 @@ async function handleIncomingMessage({ from, text, messageId }) {
       await createSession(conversation.niviUserId, conversation.niviSessionId);
     } catch (error) {
       console.error(`[Webhook] Failed to create Nivi session for ${from}:`, error.message);
+      await sendErrorToUser(conversation, from, 'מצטערים, לא הצלחנו ליצור חיבור למערכת. אנא נסה שוב.');
+      return;
     }
   }
 
@@ -133,11 +158,16 @@ async function handleIncomingMessage({ from, text, messageId }) {
     // Send response back via WhatsApp
     await sendMessage(from, niviResponse);
   } catch (error) {
-    console.error(`[Webhook] Nivi error for ${from}:`, error.message);
-    const errorMsg = 'מצטערים, אירעה שגיאה. אנא נסה שוב מאוחר יותר.';
-    conversation.messages.push({ direction: 'outgoing', body: errorMsg });
-    await conversation.save();
-    await sendMessage(from, errorMsg);
+    console.error(`[Webhook] Error for ${from}:`, error.message);
+    let errorMsg;
+    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+      errorMsg = 'מצטערים, המערכת לא הגיבה בזמן. אנא נסה שוב.';
+    } else if (error.response?.status >= 500) {
+      errorMsg = 'מצטערים, יש תקלה במערכת. אנא נסה שוב מאוחר יותר.';
+    } else {
+      errorMsg = 'מצטערים, אירעה שגיאה. אנא נסה שוב מאוחר יותר.';
+    }
+    await sendErrorToUser(conversation, from, errorMsg);
   }
 }
 

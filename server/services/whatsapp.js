@@ -7,6 +7,9 @@ const MAX_LENGTH = 4096;
 
 // Clean Nivi's markdown formatting for WhatsApp
 function cleanForWhatsApp(text) {
+  // Convert markdown links [text](url) to WhatsApp-friendly format
+  text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '\n🔗 *$1*\n$2\n');
+
   // Remove stray leading asterisks before numbered items (e.g. "*1." → "1.")
   text = text.replace(/\*(\d+\.)/g, '$1');
   // Convert markdown bold **text** or *text* to WhatsApp bold *text*
@@ -36,6 +39,9 @@ function cleanForWhatsApp(text) {
     }
     text = result;
   }
+  // Collapse multiple blank lines and trim whitespace on each line
+  text = text.split('\n').map(l => l.trim()).join('\n');
+  text = text.replace(/\n{3,}/g, '\n\n');
   return text.trim();
 }
 

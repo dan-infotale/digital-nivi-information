@@ -5,27 +5,47 @@ const NIVI_BASE_URL = process.env.NIVI_BASE_URL || 'https://nivi.digital.gov.il/
 const SESSION_URL = `${NIVI_BASE_URL}/apps/govilagent/users/{USER}/sessions/{SESSION}`;
 const RUN_SSE_URL = `${NIVI_BASE_URL}/run_sse`;
 
+// Retry a function with exponential backoff for transient failures
+async function withRetry(fn, { retries = 2, label = 'operation' } = {}) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      const status = error.response?.status;
+      const isTransient = !status || status >= 500 || error.code === 'ECONNABORTED';
+      if (attempt < retries && isTransient) {
+        const delay = 1000 * (attempt + 1);
+        console.warn(`[Nivi] ${label} failed (attempt ${attempt + 1}/${retries + 1}), retrying in ${delay}ms: ${error.message}`);
+        await new Promise(r => setTimeout(r, delay));
+      } else {
+        throw error;
+      }
+    }
+  }
+}
+
 // Create a new session for a user
 async function createSession(userId, sessionId) {
   const url = SESSION_URL
     .replace('{USER}', encodeURIComponent(userId))
     .replace('{SESSION}', encodeURIComponent(sessionId));
 
-  try {
+  return withRetry(async () => {
     const response = await axios.post(url, {}, {
       headers: { 'Content-Type': 'application/json' },
       timeout: 15000,
     });
     console.log(`[Nivi] Session created for user ${userId}, session ${sessionId}`);
     return response.data;
-  } catch (error) {
-    console.error('[Nivi] Create session error:', error.response?.data || error.message);
-    throw error;
-  }
+  }, { label: 'createSession' });
 }
 
 // Send message and collect SSE response
 async function sendToNivi(userId, sessionId, messageText) {
+  if (!userId || !sessionId || !messageText) {
+    throw new Error('sendToNivi: missing required parameters');
+  }
+
   const response = await axios.post(
     RUN_SSE_URL,
     {

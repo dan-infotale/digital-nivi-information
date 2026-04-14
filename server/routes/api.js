@@ -24,18 +24,23 @@ router.get('/conversations', async (req, res) => {
 
     res.json(summary);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('[API] Get conversations error:', error.message);
+    res.status(500).json({ error: 'Failed to fetch conversations' });
   }
 });
 
 // Get single conversation with all messages
 router.get('/conversations/:id', async (req, res) => {
   try {
+    if (!req.params.id.match(/^[a-f\d]{24}$/i)) {
+      return res.status(400).json({ error: 'Invalid conversation ID' });
+    }
     const conversation = await Conversation.findById(req.params.id);
     if (!conversation) return res.status(404).json({ error: 'Not found' });
     res.json(conversation);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('[API] Get conversation error:', error.message);
+    res.status(500).json({ error: 'Failed to fetch conversation' });
   }
 });
 
@@ -59,7 +64,8 @@ router.get('/stats', async (req, res) => {
       totalMessages: totalMessages[0]?.total || 0,
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('[API] Stats error:', error.message);
+    res.status(500).json({ error: 'Failed to fetch stats' });
   }
 });
 

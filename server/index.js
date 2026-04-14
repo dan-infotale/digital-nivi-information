@@ -6,6 +6,14 @@ const mongoose = require('mongoose');
 const webhookRoutes = require('./routes/webhook');
 const apiRoutes = require('./routes/api');
 
+// Validate required env vars at startup
+const REQUIRED_ENV = ['MONGODB_URI', 'WHATSAPP_API_URL', 'WHATSAPP_TOKEN', 'WEBHOOK_VERIFY_TOKEN'];
+const missing = REQUIRED_ENV.filter(key => !process.env[key]);
+if (missing.length > 0) {
+  console.error(`[Startup] Missing required environment variables: ${missing.join(', ')}`);
+  process.exit(1);
+}
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -19,7 +27,12 @@ app.use('/api', apiRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  const mongoState = ['disconnected', 'connected', 'connecting', 'disconnecting'];
+  res.json({
+    status: mongoose.connection.readyState === 1 ? 'ok' : 'degraded',
+    mongo: mongoState[mongoose.connection.readyState] || 'unknown',
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // Serve React build in production
@@ -27,6 +40,26 @@ const clientBuild = path.join(__dirname, '..', 'client', 'build');
 app.use(express.static(clientBuild));
 app.get('*', (req, res) => {
   res.sendFile(path.join(clientBuild, 'index.html'));
+});
+
+// Handle MongoDB connection events
+mongoose.connection.on('error', (err) => {
+  console.error('[MongoDB] Connection error:', err.message);
+});
+mongoose.connection.on('disconnected', () => {
+  console.warn('[MongoDB] Disconnected — will attempt to reconnect');
+});
+mongoose.connection.on('reconnected', () => {
+  console.log('[MongoDB] Reconnected');
+});
+
+// Catch unhandled errors so the process doesn't crash silently
+process.on('unhandledRejection', (reason) => {
+  console.error('[Process] Unhandled rejection:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[Process] Uncaught exception:', err);
+  process.exit(1);
 });
 
 // Connect to MongoDB and start server
