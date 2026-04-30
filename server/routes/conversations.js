@@ -34,20 +34,36 @@ router.get('/stats', async (req, res) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const [totalConversations, todayConversations, msgAgg] = await Promise.all([
+  const tenantOid = new (require('mongoose').Types.ObjectId)(tenantId);
+
+  const [totalConversations, todayConversations, msgAgg, durationAgg] = await Promise.all([
     Conversation.countDocuments({ tenantId }),
     Conversation.countDocuments({ tenantId, lastActivity: { $gte: today } }),
     Conversation.aggregate([
-      { $match: { tenantId: new (require('mongoose').Types.ObjectId)(tenantId) } },
-      { $project: { count: { $size: '$messages' } } },
-      { $group: { _id: null, total: { $sum: '$count' } } },
+      { $match: { tenantId: tenantOid } },
+      { $project: {
+        incoming: { $size: { $filter: { input: '$messages', as: 'm', cond: { $eq: ['$$m.direction', 'incoming'] } } } },
+        outgoing: { $size: { $filter: { input: '$messages', as: 'm', cond: { $eq: ['$$m.direction', 'outgoing'] } } } },
+      }},
+      { $group: { _id: null, incoming: { $sum: '$incoming' }, outgoing: { $sum: '$outgoing' } } },
+    ]),
+    Conversation.aggregate([
+      { $match: { tenantId: tenantOid, createdAt: { $exists: true } } },
+      { $project: { durationMs: { $subtract: ['$lastActivity', '$createdAt'] } } },
+      { $group: { _id: null, avgMs: { $avg: '$durationMs' } } },
     ]),
   ]);
+
+  const avgDurationMinutes = durationAgg[0]?.avgMs
+    ? Math.round(durationAgg[0].avgMs / 60000)
+    : 0;
 
   res.json({
     totalConversations,
     todayConversations,
-    totalMessages: msgAgg[0]?.total || 0,
+    incomingMessages: msgAgg[0]?.incoming || 0,
+    outgoingMessages: msgAgg[0]?.outgoing || 0,
+    avgDurationMinutes,
   });
 });
 

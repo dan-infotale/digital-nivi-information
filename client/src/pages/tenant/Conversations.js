@@ -32,7 +32,7 @@ export default function Conversations() {
   const [connectors, setConnectors] = useState([]);
   const [filterConnector, setFilterConnector] = useState('');
   const [selected, setSelected] = useState(null);
-  const [stats, setStats] = useState({ totalConversations: 0, todayConversations: 0, totalMessages: 0 });
+  const [stats, setStats] = useState({ totalConversations: 0, todayConversations: 0, incomingMessages: 0, outgoingMessages: 0, avgDurationMinutes: 0 });
   const messagesEndRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -74,8 +74,16 @@ export default function Conversations() {
           <span className="stat-label">{t('today')}</span>
         </div>
         <div className="stat-card">
-          <span className="stat-number">{stats.totalMessages}</span>
-          <span className="stat-label">{t('messages')}</span>
+          <span className="stat-number">👤 {stats.incomingMessages}</span>
+          <span className="stat-label">הודעות לקוח</span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-number">🤖 {stats.outgoingMessages}</span>
+          <span className="stat-label">הודעות בוט</span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-number">{stats.avgDurationMinutes}</span>
+          <span className="stat-label">משך ממוצע (דק')</span>
         </div>
       </div>
 
