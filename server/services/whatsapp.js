@@ -11,15 +11,16 @@ function cleanForWhatsApp(text) {
     return ph;
   });
 
-  // Headings → *bold*
-  text = text.replace(/^#{1,6}\s+(.+)$/gm, '*$1*');
+  // Italic first (before bold produces lone *) — markdown *text* → WhatsApp _text_
+  // Negative lookahead/behind ensures we don't touch **bold**
+  text = text.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '_$1_');
 
-  // Bold: **text** or __text__ → *text*
+  // Bold: **text** or __text__ → *text*  (runs after italic so output is safe)
   text = text.replace(/\*\*(.+?)\*\*/gs, '*$1*');
   text = text.replace(/__(.+?)__/gs, '*$1*');
 
-  // Italic: *text* (lone, not bold) → _text_
-  text = text.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '_$1_');
+  // Headings → *bold*  (runs after italic for same reason)
+  text = text.replace(/^#{1,6}\s+(.+)$/gm, '*$1*');
 
   // Strikethrough: ~~text~~ → ~text~
   text = text.replace(/~~(.+?)~~/g, '~$1~');

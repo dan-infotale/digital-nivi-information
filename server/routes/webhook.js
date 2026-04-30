@@ -207,7 +207,7 @@ async function handleMessage(connector, { from, text, messageId }) {
     }
 
     if (isNew) {
-      reply += '\n\n_להתחלת שיחה חדשה אנא הקלד "שיחה חדשה"_';
+      reply += '\n\nלהתחלת שיחה חדשה אנא הקלד **שיחה חדשה**';
     }
 
     conversation.messages.push({ direction: 'outgoing', body: reply });
