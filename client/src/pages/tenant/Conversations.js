@@ -74,11 +74,11 @@ export default function Conversations() {
           <span className="stat-label">{t('today')}</span>
         </div>
         <div className="stat-card">
-          <span className="stat-number">👤 {stats.incomingMessages}</span>
+          <span className="stat-number">{stats.incomingMessages}</span>
           <span className="stat-label">הודעות לקוח</span>
         </div>
         <div className="stat-card">
-          <span className="stat-number">🤖 {stats.outgoingMessages}</span>
+          <span className="stat-number">{stats.outgoingMessages}</span>
           <span className="stat-label">הודעות בוט</span>
         </div>
         <div className="stat-card">
