@@ -3,30 +3,43 @@ const axios = require('axios');
 const MAX_LENGTH = 4096;
 
 function cleanForWhatsApp(text) {
-  text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '\n🔗 *$1*\n$2\n');
-  text = text.replace(/\*(\d+\.)/g, '$1');
-  text = text.replace(/\*\*(.+?)\*\*/g, '*$1*');
-  const parts = text.split('*');
-  if (parts.length > 1) {
-    let result = '';
-    let i = 0;
-    while (i < parts.length) {
-      result += parts[i];
-      if (i + 1 < parts.length) {
-        const candidate = parts[i + 1];
-        if (candidate && !candidate.includes('\n') && candidate.trim().length > 0) {
-          result += '*' + candidate + '*';
-          i += 2;
-        } else {
-          i += 1;
-        }
-      } else {
-        i += 1;
-      }
-    }
-    text = result;
-  }
-  text = text.split('\n').map(l => l.trim()).join('\n');
+  // Preserve fenced code blocks — WhatsApp renders ```code``` natively
+  const codeBlocks = [];
+  text = text.replace(/```[\w]*\n?([\s\S]*?)```/g, (_, code) => {
+    const ph = `\x00BLOCK${codeBlocks.length}\x00`;
+    codeBlocks.push(`\`\`\`\n${code.trim()}\n\`\`\``);
+    return ph;
+  });
+
+  // Headings → *bold*
+  text = text.replace(/^#{1,6}\s+(.+)$/gm, '*$1*');
+
+  // Bold: **text** or __text__ → *text*
+  text = text.replace(/\*\*(.+?)\*\*/gs, '*$1*');
+  text = text.replace(/__(.+?)__/gs, '*$1*');
+
+  // Italic: *text* (lone, not bold) → _text_
+  text = text.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '_$1_');
+
+  // Strikethrough: ~~text~~ → ~text~
+  text = text.replace(/~~(.+?)~~/g, '~$1~');
+
+  // Links: [text](url) → text\nurl
+  text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '$1\n$2');
+
+  // Horizontal rules → remove
+  text = text.replace(/^[-*_]{3,}$/gm, '');
+
+  // Bullet lists: - or * at line start → •
+  text = text.replace(/^[ \t]*[-*]\s+/gm, '• ');
+
+  // Restore code blocks
+  codeBlocks.forEach((block, i) => {
+    text = text.replace(`\x00BLOCK${i}\x00`, block);
+  });
+
+  // Clean up whitespace
+  text = text.split('\n').map(l => l.trimEnd()).join('\n');
   text = text.replace(/\n{3,}/g, '\n\n');
   return text.trim();
 }

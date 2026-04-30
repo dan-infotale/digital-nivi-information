@@ -1,5 +1,6 @@
 const express = require('express');
 const BotBackend = require('../models/BotBackend');
+const KnowledgeBase = require('../models/KnowledgeBase');
 const SystemSettings = require('../models/SystemSettings');
 const { requireTenantUser } = require('../middleware/auth');
 
@@ -20,12 +21,20 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   const { name, type, config, knowledgeBaseId } = req.body;
   if (!name || !type || !config) return res.status(400).json({ error: 'name, type and config required' });
+  if (knowledgeBaseId) {
+    const kb = await KnowledgeBase.findOne({ _id: knowledgeBaseId, tenantId: req.user.tenantId });
+    if (!kb) return res.status(400).json({ error: 'Invalid knowledge base' });
+  }
   const item = await BotBackend.create({ tenantId: req.user.tenantId, name, type, config, knowledgeBaseId: knowledgeBaseId || null });
   res.status(201).json(scrubSecrets(item));
 });
 
 router.put('/:id', async (req, res) => {
   const { name, config, knowledgeBaseId } = req.body;
+  if (knowledgeBaseId) {
+    const kb = await KnowledgeBase.findOne({ _id: knowledgeBaseId, tenantId: req.user.tenantId });
+    if (!kb) return res.status(400).json({ error: 'Invalid knowledge base' });
+  }
   const update = {};
   if (name !== undefined) update.name = name;
   if (config !== undefined) {

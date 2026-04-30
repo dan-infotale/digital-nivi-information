@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { TenantLayout } from '../../components/Layout';
 import Icon from '../../components/Icons';
 import api from '../../api';
@@ -151,7 +153,11 @@ export default function Conversations() {
                   ) : (
                     <div key={i} className={`msg ${item.msg.direction === 'incoming' ? 'in' : 'out'}`}>
                       <div className="msg-bubble">
-                        <p className="msg-text">{item.msg.body}</p>
+                        <div className="msg-text">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {item.msg.body}
+                          </ReactMarkdown>
+                        </div>
                         <span className="msg-time">{formatTime(item.msg.timestamp)}</span>
                       </div>
                     </div>

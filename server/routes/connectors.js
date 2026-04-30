@@ -1,5 +1,7 @@
 const express = require('express');
 const Connector = require('../models/Connector');
+const MetaConnection = require('../models/MetaConnection');
+const BotBackend = require('../models/BotBackend');
 const { requireTenantUser } = require('../middleware/auth');
 
 const router = express.Router();
@@ -16,12 +18,28 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   const { name, metaConnectionId, botBackendId, active } = req.body;
   if (!name || !metaConnectionId || !botBackendId) return res.status(400).json({ error: 'name, metaConnectionId and botBackendId required' });
-  const item = await Connector.create({ tenantId: req.user.tenantId, name, metaConnectionId, botBackendId, active: active !== false });
+  const tenantId = req.user.tenantId;
+  const [meta, bot] = await Promise.all([
+    MetaConnection.findOne({ _id: metaConnectionId, tenantId }),
+    BotBackend.findOne({ _id: botBackendId, tenantId }),
+  ]);
+  if (!meta) return res.status(400).json({ error: 'Invalid META connection' });
+  if (!bot) return res.status(400).json({ error: 'Invalid bot backend' });
+  const item = await Connector.create({ tenantId, name, metaConnectionId, botBackendId, active: active !== false });
   res.status(201).json(item);
 });
 
 router.put('/:id', async (req, res) => {
   const { name, metaConnectionId, botBackendId, active } = req.body;
+  const tenantId = req.user.tenantId;
+  if (metaConnectionId !== undefined) {
+    const meta = await MetaConnection.findOne({ _id: metaConnectionId, tenantId });
+    if (!meta) return res.status(400).json({ error: 'Invalid META connection' });
+  }
+  if (botBackendId !== undefined) {
+    const bot = await BotBackend.findOne({ _id: botBackendId, tenantId });
+    if (!bot) return res.status(400).json({ error: 'Invalid bot backend' });
+  }
   const update = {};
   if (name !== undefined) update.name = name;
   if (metaConnectionId !== undefined) update.metaConnectionId = metaConnectionId;
