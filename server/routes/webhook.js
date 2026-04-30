@@ -142,8 +142,8 @@ async function handleMessage(connector, { from, text, messageId }) {
     conversation.status = 'active';
   }
 
-  // PII/PCI guard — redact, warn user, skip bot
-  if (containsPii(text)) {
+  // PII/PCI guard — redact, warn user, skip bot (only if enabled on the bot backend)
+  if (bot.config?.piiFilter && containsPii(text)) {
     const redacted = redactPii(text);
     conversation.messages.push({ direction: 'incoming', body: redacted, whatsappMessageId: messageId });
     conversation.lastActivity = new Date();

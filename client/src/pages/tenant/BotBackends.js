@@ -5,8 +5,8 @@ import Icon from '../../components/Icons';
 import api from '../../api';
 import { useLanguage } from '../../context/LanguageContext';
 
-const NIVI_DEFAULTS = { baseUrl: '', apiKey: '' };
-const AGENT_DEFAULTS = { providerId: '', systemPrompt: 'You are a helpful assistant.', temperature: 0.7, topK: 5 };
+const NIVI_DEFAULTS = { baseUrl: '', apiKey: '', piiFilter: false };
+const AGENT_DEFAULTS = { providerId: '', systemPrompt: 'You are a helpful assistant.', temperature: 0.7, topK: 5, piiFilter: false };
 
 export default function BotBackends() {
   const { t } = useLanguage();
@@ -245,6 +245,15 @@ export default function BotBackends() {
                 </div>
               </fieldset>
             </>)}
+
+            <label className="checkbox-label" style={{ marginTop: 8 }}>
+              <input
+                type="checkbox"
+                checked={!!config.piiFilter}
+                onChange={e => setConfig(c => ({ ...c, piiFilter: e.target.checked }))}
+              />
+              סינון מידע רגיש
+            </label>
 
             <div className="form-actions">
               <button type="button" className="btn-secondary" onClick={() => setDrawer(false)}>{t('cancel')}</button>
