@@ -48,13 +48,14 @@ router.get('/stats', async (req, res) => {
       { $group: { _id: null, incoming: { $sum: '$incoming' }, outgoing: { $sum: '$outgoing' } } },
     ]),
     Conversation.aggregate([
-      { $match: { tenantId: tenantOid, 'messages.1': { $exists: true } } },
+      { $match: { tenantId: tenantOid, status: 'closed', 'messages.1': { $exists: true } } },
       { $project: {
         durationMs: { $subtract: [
           { $arrayElemAt: ['$messages.timestamp', -1] },
           { $arrayElemAt: ['$messages.timestamp', 0] },
         ]},
       }},
+      { $match: { durationMs: { $gt: 0 } } },
       { $group: { _id: null, avgMs: { $avg: '$durationMs' } } },
     ]),
   ]);
