@@ -33,7 +33,7 @@ export default function Conversations() {
   const [filterConnector, setFilterConnector] = useState('');
   const [selected, setSelected] = useState(null);
   const [stats, setStats] = useState({ totalConversations: 0, todayConversations: 0, incomingMessages: 0, outgoingMessages: 0, avgDurationMinutes: 0 });
-  const messagesEndRef = useRef(null);
+  const lastMsgRef = useRef(null);
 
   const load = useCallback(async () => {
     const params = filterConnector ? `?connectorId=${filterConnector}` : '';
@@ -48,7 +48,7 @@ export default function Conversations() {
   }, [filterConnector]);
 
   useEffect(() => { load(); const i = setInterval(load, 10000); return () => clearInterval(i); }, [load]);
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [selected]);
+  useEffect(() => { lastMsgRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, [selected]);
 
   async function openConversation(id) {
     const { data } = await api.get(`/conversations/${id}`);
@@ -128,11 +128,12 @@ export default function Conversations() {
                 </button>
               </div>
               <div className="thread-messages">
-                {groupByDay(selected.messages, t).map((item, i) =>
-                  item.type === 'divider' ? (
+                {groupByDay(selected.messages, t).map((item, i, arr) => {
+                  const isLast = item.type === 'msg' && i === arr.length - 1;
+                  return item.type === 'divider' ? (
                     <div key={i} className="day-divider">{item.label}</div>
                   ) : (
-                    <div key={i} className={`msg ${item.msg.direction === 'incoming' ? 'in' : 'out'}`}>
+                    <div key={i} ref={isLast ? lastMsgRef : null} className={`msg ${item.msg.direction === 'incoming' ? 'in' : 'out'}`}>
                       <div className="msg-bubble">
                         <div className="msg-text">
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.msg.body}</ReactMarkdown>
@@ -140,9 +141,8 @@ export default function Conversations() {
                         <span className="msg-time">{formatTime(item.msg.timestamp)}</span>
                       </div>
                     </div>
-                  )
-                )}
-                <div ref={messagesEndRef} />
+                  );
+                })}
               </div>
             </>
           ) : (
