@@ -62,10 +62,6 @@ export default function Login() {
             ))}
           </div>
 
-          <div className="divider">system admin</div>
-          <button className="btn-ghost" style={{ width: '100%' }} onClick={() => navigate('/system-login')}>
-            {t('sign_in_as_admin')}
-          </button>
         </div>
       </div>
     );
