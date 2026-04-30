@@ -2,8 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { AdminLayout } from '../../components/Layout';
 import Modal from '../../components/Modal';
 import api from '../../api';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function SystemAdmins() {
+  const { t } = useLanguage();
   const [admins, setAdmins] = useState([]);
   const [modal, setModal] = useState(false);
   const [selected, setSelected] = useState(null);
@@ -56,15 +58,15 @@ export default function SystemAdmins() {
   }
 
   return (
-    <AdminLayout title="System Admins">
+    <AdminLayout title={t('system_admins')}>
       <div className="page-header">
-        <h2>System Admins</h2>
-        <button className="btn-primary" onClick={openNew}>+ New Admin</button>
+        <h2>{t('system_admins')}</h2>
+        <button className="btn-primary" onClick={openNew}>+ {t('new_admin')}</button>
       </div>
 
       <div className="card">
         <table className="data-table">
-          <thead><tr><th>Name</th><th>Email</th><th>Entra</th><th>Created</th><th>Actions</th></tr></thead>
+          <thead><tr><th>{t('name')}</th><th>{t('email')}</th><th>Entra</th><th>Created</th><th>{t('actions')}</th></tr></thead>
           <tbody>
             {admins.map(a => (
               <tr key={a._id}>
@@ -73,28 +75,28 @@ export default function SystemAdmins() {
                 <td>{a.entraOid ? '✓' : '—'}</td>
                 <td>{new Date(a.createdAt).toLocaleDateString()}</td>
                 <td className="actions">
-                  <button onClick={() => openEdit(a)}>Edit</button>
-                  <button className="btn-danger" onClick={() => remove(a._id)}>Remove</button>
+                  <button onClick={() => openEdit(a)}>{t('edit')}</button>
+                  <button className="btn-danger" onClick={() => remove(a._id)}>{t('delete')}</button>
                 </td>
               </tr>
             ))}
-            {admins.length === 0 && <tr><td colSpan={5} className="empty">No admins</td></tr>}
+            {admins.length === 0 && <tr><td colSpan={5} className="empty">{t('no_admins')}</td></tr>}
           </tbody>
         </table>
       </div>
 
       {modal && (
-        <Modal title={selected ? 'Edit Admin' : 'New System Admin'} onClose={() => setModal(false)}>
+        <Modal title={selected ? t('edit_admin') : t('new_admin')} onClose={() => setModal(false)}>
           {error && <div className="error-banner">{error}</div>}
           <form onSubmit={save} className="form-grid">
-            <label>Name<input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></label>
-            <label>Email<input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required /></label>
-            <label>Password {selected && '(leave blank to keep current)'}
+            <label>{t('name')}<input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></label>
+            <label>{t('email')}<input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required /></label>
+            <label>{t('password')} {selected && '(leave blank to keep current)'}
               <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
             </label>
             <div className="form-actions">
-              <button type="button" className="btn-secondary" onClick={() => setModal(false)}>Cancel</button>
-              <button type="submit" className="btn-primary">Save</button>
+              <button type="button" className="btn-secondary" onClick={() => setModal(false)}>{t('cancel')}</button>
+              <button type="submit" className="btn-primary">{t('save')}</button>
             </div>
           </form>
         </Modal>

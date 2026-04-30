@@ -3,11 +3,13 @@ import { TenantLayout } from '../../components/Layout';
 import { Drawer } from '../../components/Modal';
 import Icon from '../../components/Icons';
 import api from '../../api';
+import { useLanguage } from '../../context/LanguageContext';
 
 const NIVI_DEFAULTS = { baseUrl: '', apiKey: '' };
 const AGENT_DEFAULTS = { providerId: '', systemPrompt: 'You are a helpful assistant.', temperature: 0.7, topK: 5 };
 
 export default function BotBackends() {
+  const { t } = useLanguage();
   const [items, setItems] = useState([]);
   const [kbs, setKbs] = useState([]);
   const [providers, setProviders] = useState([]);
@@ -103,7 +105,7 @@ export default function BotBackends() {
         <h2>Custom Agents</h2>
         <button className="btn-primary" onClick={openNew}>
           <Icon name="plus" size={14} />
-          New Agent
+          {t('new_agent')}
         </button>
       </div>
 
@@ -111,11 +113,11 @@ export default function BotBackends() {
         <table className="data-table">
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Type</th>
-              <th>Knowledge Base</th>
-              <th>Provider / URL</th>
-              <th>Actions</th>
+              <th>{t('name')}</th>
+              <th>{t('type')}</th>
+              <th>{t('knowledge_base')}</th>
+              <th>{t('provider_url')}</th>
+              <th>{t('actions')}</th>
             </tr>
           </thead>
           <tbody>
@@ -140,7 +142,7 @@ export default function BotBackends() {
                     onClick={() => testConnection(item._id)}
                     disabled={testResults[item._id] === 'loading'}
                   >
-                    {testResults[item._id] === 'loading' ? '...' : 'Test'}
+                    {testResults[item._id] === 'loading' ? '...' : t('test')}
                   </button>
                   {testResults[item._id] && testResults[item._id] !== 'loading' && (
                     <span className={`conn-badge ${testResults[item._id].ok ? 'conn-ok' : 'conn-err'}`}>
@@ -149,27 +151,27 @@ export default function BotBackends() {
                         : `✗ ${testResults[item._id].error}`}
                     </span>
                   )}
-                  <button onClick={() => openEdit(item)}>Edit</button>
-                  <button className="btn-danger" onClick={() => remove(item._id)}>Delete</button>
+                  <button onClick={() => openEdit(item)}>{t('edit')}</button>
+                  <button className="btn-danger" onClick={() => remove(item._id)}>{t('delete')}</button>
                 </td>
               </tr>
             ))}
             {items.length === 0 && (
-              <tr><td colSpan={5} className="empty">No agents yet</td></tr>
+              <tr><td colSpan={5} className="empty">{t('no_agents')}</td></tr>
             )}
           </tbody>
         </table>
       </div>
 
       {drawer && (
-        <Drawer title={selected ? 'Edit Agent' : 'New Agent'} onClose={() => setDrawer(false)}>
+        <Drawer title={selected ? t('edit_agent') : t('new_agent')} onClose={() => setDrawer(false)}>
           {error && <div className="error-banner">{error}</div>}
           <form onSubmit={save} className="form-grid">
-            <label>Name
+            <label>{t('name')}
               <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
             </label>
 
-            <label>Type</label>
+            <label>{t('type')}</label>
             <div className="segmented" style={{ marginTop: -8 }}>
               <button
                 type="button"
@@ -190,22 +192,22 @@ export default function BotBackends() {
             </div>
 
             {type === 'nivi' && (<>
-              <label>Base URL
+              <label>{t('base_url')}
                 <input {...cfg('baseUrl')} placeholder="https://nivi.digital.gov.il/..." required />
               </label>
-              <label>API Key
+              <label>{t('api_key')}
                 <input type="password" {...cfg('apiKey')} placeholder="Bearer token" />
               </label>
             </>)}
 
             {type === 'custom_agent' && (<>
-              <label>LLM Provider
+              <label>{t('llm_provider')}
                 <select
                   value={config.providerId ?? ''}
                   onChange={e => setConfig(c => ({ ...c, providerId: e.target.value }))}
                   required
                 >
-                  <option value="">— Select provider —</option>
+                  <option value="">{t('select_provider')}</option>
                   {providers.map(p => (
                     <option key={p._id} value={p._id}>{p.name} {p.model ? `(${p.model})` : ''}</option>
                   ))}
@@ -213,10 +215,10 @@ export default function BotBackends() {
               </label>
               {providers.length === 0 && (
                 <div style={{ fontSize: 12, color: 'var(--warn)', padding: '6px 10px', background: 'rgba(217,119,6,0.08)', borderRadius: 'var(--r-md)' }}>
-                  No LLM providers configured. Ask your system admin to add providers in System Settings.
+                  {t('no_providers_warn')}
                 </div>
               )}
-              <label>System Prompt
+              <label>{t('system_prompt')}
                 <textarea
                   rows={4}
                   value={config.systemPrompt ?? ''}
@@ -224,19 +226,19 @@ export default function BotBackends() {
                   placeholder="You are a helpful assistant."
                 />
               </label>
-              <label>Temperature (0–2)
+              <label>{t('temperature')}
                 <input type="number" step="0.1" min="0" max="2" {...cfg('temperature', 'number')} />
               </label>
 
               <fieldset>
-                <legend>RAG (optional)</legend>
+                <legend>{t('rag_optional')}</legend>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
-                  <label>Top-K results
+                  <label>{t('top_k')}
                     <input type="number" min="1" max="20" {...cfg('topK', 'number')} />
                   </label>
-                  <label>Knowledge Base
+                  <label>{t('knowledge_base')}
                     <select value={form.knowledgeBaseId} onChange={e => setForm(f => ({ ...f, knowledgeBaseId: e.target.value }))}>
-                      <option value="">— None —</option>
+                      <option value="">{t('no_kb')}</option>
                       {kbs.map(k => <option key={k._id} value={k._id}>{k.name}</option>)}
                     </select>
                   </label>
@@ -245,8 +247,8 @@ export default function BotBackends() {
             </>)}
 
             <div className="form-actions">
-              <button type="button" className="btn-secondary" onClick={() => setDrawer(false)}>Cancel</button>
-              <button type="submit" className="btn-primary">Save</button>
+              <button type="button" className="btn-secondary" onClick={() => setDrawer(false)}>{t('cancel')}</button>
+              <button type="submit" className="btn-primary">{t('save')}</button>
             </div>
           </form>
         </Drawer>

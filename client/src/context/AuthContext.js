@@ -20,9 +20,10 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
-  const loginWithPassword = useCallback(async (email, password, isAdmin = false) => {
+  const loginWithPassword = useCallback(async (email, password, isAdmin = false, tenantId = null) => {
     const endpoint = isAdmin ? '/auth/admin/login' : '/auth/login';
-    const { data } = await api.post(endpoint, { email, password });
+    const body = isAdmin ? { email, password } : { email, password, tenantId };
+    const { data } = await api.post(endpoint, body);
     login(data.token, data.user);
     return data.user;
   }, [login]);

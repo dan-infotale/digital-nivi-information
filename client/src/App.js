@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { LanguageProvider, useLanguage } from './context/LanguageContext';
 import Login from './pages/Login';
 import SystemLogin from './pages/SystemLogin';
 import AuthCallback from './pages/AuthCallback';
@@ -34,9 +35,19 @@ function Root() {
   return <Navigate to={user.type === 'system_admin' ? '/admin/tenants' : '/conversations'} replace />;
 }
 
+function DirSync() {
+  const { lang } = useLanguage();
+  useEffect(() => {
+    document.documentElement.dir = lang === 'he' ? 'rtl' : 'ltr';
+    document.documentElement.lang = lang;
+  }, [lang]);
+  return null;
+}
+
 export default function App() {
   return (
-    <AuthProvider>
+    <LanguageProvider>
+      <AuthProvider>
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
@@ -55,7 +66,9 @@ export default function App() {
 
           <Route path="*" element={<Root />} />
         </Routes>
+        <DirSync />
       </BrowserRouter>
-    </AuthProvider>
+      </AuthProvider>
+    </LanguageProvider>
   );
 }

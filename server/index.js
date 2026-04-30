@@ -65,6 +65,7 @@ mongoose.connect(process.env.MONGODB_URI)
   .then(async () => {
     console.log('[MongoDB] Connected');
     await ensureInitialAdmin();
+    require('./services/autoClose');
     app.listen(PORT, () => {
       console.log(`[Server] Running on port ${PORT}`);
       console.log(`[Webhook] URLs: /webhook/<connectorId>`);

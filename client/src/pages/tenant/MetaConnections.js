@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { TenantLayout } from '../../components/Layout';
+import { useLanguage } from '../../context/LanguageContext';
 import Modal from '../../components/Modal';
 import Icon from '../../components/Icons';
 import api from '../../api';
@@ -7,6 +8,7 @@ import api from '../../api';
 const EMPTY = { name: '', apiUrl: '', token: '', phoneNumberId: '', verifyToken: '' };
 
 export default function MetaConnections() {
+  const { t } = useLanguage();
   const [items, setItems] = useState([]);
   const [connectors, setConnectors] = useState([]);
   const [modal, setModal] = useState(false);
@@ -20,11 +22,16 @@ export default function MetaConnections() {
 
   const load = useCallback(async () => {
     const [m, c] = await Promise.all([api.get('/meta-connections'), api.get('/connectors')]);
-    setItems(m.data);
-    setConnectors(c.data);
+    setItems(m.data); setConnectors(c.data);
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  function copy(text, id) {
+    navigator.clipboard.writeText(text);
+    setCopied(id);
+    setTimeout(() => setCopied(null), 2000);
+  }
 
   async function testConnection(id) {
     setTestResults(r => ({ ...r, [id]: 'loading' }));
@@ -36,59 +43,42 @@ export default function MetaConnections() {
     }
   }
 
-  function copy(text, id) {
-    navigator.clipboard.writeText(text);
-    setCopied(id);
-    setTimeout(() => setCopied(null), 2000);
-  }
-
   function openNew() { setSelected(null); setForm(EMPTY); setError(''); setModal(true); }
   function openEdit(item) { setSelected(item); setForm({ ...EMPTY, ...item, token: '' }); setError(''); setModal(true); }
 
   async function save(e) {
-    e.preventDefault();
-    setError('');
+    e.preventDefault(); setError('');
     try {
-      if (selected) {
-        await api.put(`/meta-connections/${selected._id}`, form);
-      } else {
-        await api.post('/meta-connections', form);
-      }
-      setModal(false);
-      load();
-    } catch (err) {
-      setError(err.response?.data?.error || 'Error');
-    }
+      if (selected) await api.put(`/meta-connections/${selected._id}`, form);
+      else await api.post('/meta-connections', form);
+      setModal(false); load();
+    } catch (err) { setError(err.response?.data?.error || 'Error'); }
   }
 
   async function remove(id) {
-    if (!window.confirm('Delete this META connection?')) return;
-    await api.delete(`/meta-connections/${id}`);
-    load();
+    if (!window.confirm(t('delete') + '?')) return;
+    await api.delete(`/meta-connections/${id}`); load();
   }
 
   const f = (k) => ({ value: form[k], onChange: e => setForm(x => ({ ...x, [k]: e.target.value })) });
 
   return (
-    <TenantLayout title="META Connections">
+    <TenantLayout title={t('meta_connections')}>
       <div className="page-header">
-        <h2>META Connections</h2>
+        <h2>{t('meta_connections')}</h2>
         <button className="btn-primary" onClick={openNew}>
-          <Icon name="plus" size={14} />
-          New Connection
+          <Icon name="plus" size={14} /> {t('new_connection')}
         </button>
       </div>
 
       <div className="meta-cards">
         {items.length === 0 && (
           <div className="empty" style={{ background: 'var(--bg-1)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)' }}>
-            No META connections yet
+            {t('no_meta')}
           </div>
         )}
         {items.map(item => {
-          const linked = connectors.filter(c =>
-            (c.metaConnectionId?._id || c.metaConnectionId) === item._id
-          );
+          const linked = connectors.filter(c => (c.metaConnectionId?._id || c.metaConnectionId) === item._id);
           return (
             <div key={item._id} className="meta-card">
               <div className="meta-card-header">
@@ -104,29 +94,20 @@ export default function MetaConnections() {
                   </div>
                 </div>
                 <div className="meta-actions">
-                  <button
-                    className="btn-ghost"
-                    onClick={() => testConnection(item._id)}
-                    disabled={testResults[item._id] === 'loading'}
-                  >
-                    {testResults[item._id] === 'loading' ? '...' : 'Test'}
+                  <button className="btn-ghost" onClick={() => testConnection(item._id)} disabled={testResults[item._id] === 'loading'}>
+                    {testResults[item._id] === 'loading' ? '...' : t('test')}
                   </button>
                   {testResults[item._id] && testResults[item._id] !== 'loading' && (
                     <span className={`conn-badge ${testResults[item._id].ok ? 'conn-ok' : 'conn-err'}`}>
-                      {testResults[item._id].ok
-                        ? `✓ ${testResults[item._id].name || 'Connected'}`
-                        : `✗ ${testResults[item._id].error}`}
+                      {testResults[item._id].ok ? `✓ ${testResults[item._id].name || ''}` : `✗ ${testResults[item._id].error}`}
                     </span>
                   )}
-                  <button className="btn-ghost" onClick={() => openEdit(item)}>Edit</button>
-                  <button className="btn-danger" onClick={() => remove(item._id)}>Delete</button>
+                  <button className="btn-ghost" onClick={() => openEdit(item)}>{t('edit')}</button>
+                  <button className="btn-danger" onClick={() => remove(item._id)}>{t('delete')}</button>
                 </div>
               </div>
-
               {linked.length === 0 ? (
-                <div className="no-webhooks">
-                  No connectors linked — create a connector to get a webhook URL.
-                </div>
+                <div className="no-webhooks">{t('no_connectors_linked')}</div>
               ) : (
                 <div className="meta-webhook-list">
                   {linked.map(c => {
@@ -136,11 +117,8 @@ export default function MetaConnections() {
                       <div key={c._id} className="meta-webhook-item">
                         <span className="meta-webhook-name">{c.name}</span>
                         <span className="meta-webhook-url">{url}</span>
-                        <button
-                          className={`btn-copy ${copied === copyId ? 'copied' : ''}`}
-                          onClick={() => copy(url, copyId)}
-                        >
-                          {copied === copyId ? '✓ Copied' : 'Copy'}
+                        <button className={`btn-copy ${copied === copyId ? 'copied' : ''}`} onClick={() => copy(url, copyId)}>
+                          {copied === copyId ? t('copied') : t('copy')}
                         </button>
                       </div>
                     );
@@ -153,22 +131,20 @@ export default function MetaConnections() {
       </div>
 
       {modal && (
-        <Modal title={selected ? 'Edit Connection' : 'New META Connection'} onClose={() => setModal(false)}>
+        <Modal title={selected ? t('edit_connection') : t('new_meta')} onClose={() => setModal(false)}>
           {error && <div className="error-banner">{error}</div>}
           <form onSubmit={save} className="form-grid">
-            <label>Name<input {...f('name')} required /></label>
-            <label>API URL
-              <input {...f('apiUrl')} placeholder="https://graph.facebook.com/v19.0/.../messages" required={!selected} />
-            </label>
+            <label>{t('name')}<input {...f('name')} required /></label>
+            <label>{t('api_url')}<input {...f('apiUrl')} placeholder="https://graph.facebook.com/v19.0/.../messages" required={!selected} /></label>
             <label>
-              Token {selected && <span style={{ fontWeight: 400, color: 'var(--fg-4)' }}>(leave blank to keep current)</span>}
+              {t('token')} {selected && <span style={{ fontWeight: 400, color: 'var(--fg-4)' }}>{t('token_keep')}</span>}
               <input type="password" {...f('token')} required={!selected} />
             </label>
-            <label>Phone Number ID<input {...f('phoneNumberId')} required /></label>
-            <label>Webhook Verify Token<input {...f('verifyToken')} required /></label>
+            <label>{t('phone_number_id')}<input {...f('phoneNumberId')} required /></label>
+            <label>{t('verify_token')}<input {...f('verifyToken')} required /></label>
             <div className="form-actions">
-              <button type="button" className="btn-secondary" onClick={() => setModal(false)}>Cancel</button>
-              <button type="submit" className="btn-primary">Save</button>
+              <button type="button" className="btn-secondary" onClick={() => setModal(false)}>{t('cancel')}</button>
+              <button type="submit" className="btn-primary">{t('save')}</button>
             </div>
           </form>
         </Modal>

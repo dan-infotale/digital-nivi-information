@@ -11,7 +11,7 @@ router.get('/', async (req, res) => {
 
   const convs = await Conversation.find(filter)
     .sort({ lastActivity: -1 })
-    .select('phoneNumber lastActivity messages connectorId createdAt')
+    .select('phoneNumber lastActivity messages connectorId createdAt status')
     .populate('connectorId', 'name')
     .lean();
 
@@ -21,8 +21,11 @@ router.get('/', async (req, res) => {
     lastActivity: c.lastActivity,
     createdAt: c.createdAt,
     messageCount: c.messages.length,
+    incomingCount: c.messages.filter(m => m.direction === 'incoming').length,
+    outgoingCount: c.messages.filter(m => m.direction === 'outgoing').length,
     lastMessage: c.messages.length > 0 ? c.messages[c.messages.length - 1].body.substring(0, 100) : '',
     connector: c.connectorId,
+    status: c.status || 'active',
   })));
 });
 

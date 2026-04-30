@@ -17,6 +17,7 @@ const schema = new mongoose.Schema({
   // OpenAI-compatible conversation history [{role, content}]
   openaiHistory: { type: Array, default: [] },
   messages: [messageSchema],
+  status: { type: String, enum: ['active', 'closed'], default: 'active' },
   lastActivity: { type: Date, default: Date.now },
   createdAt: { type: Date, default: Date.now },
 });

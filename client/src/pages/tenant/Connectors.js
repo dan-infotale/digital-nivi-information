@@ -3,8 +3,10 @@ import { TenantLayout } from '../../components/Layout';
 import Modal from '../../components/Modal';
 import Icon from '../../components/Icons';
 import api from '../../api';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function Connectors() {
+  const { t } = useLanguage();
   const [items, setItems] = useState([]);
   const [connections, setConnections] = useState([]);
   const [bots, setBots] = useState([]);
@@ -103,19 +105,19 @@ export default function Connectors() {
   }
 
   return (
-    <TenantLayout title="Connectors">
+    <TenantLayout title={t('connectors')}>
       <div className="page-header">
-        <h2>Connectors</h2>
+        <h2>{t('connectors')}</h2>
         <button className="btn-primary" onClick={openNew}>
           <Icon name="plus" size={14} />
-          New Connector
+          {t('new_connector')}
         </button>
       </div>
 
       <div className="topology-grid">
         {items.length === 0 && (
           <div className="empty" style={{ background: 'var(--bg-1)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)' }}>
-            No connectors yet — create one to link a WhatsApp number to a bot.
+            {t('no_connectors')}
           </div>
         )}
         {items.map(item => {
@@ -132,7 +134,7 @@ export default function Connectors() {
                     </svg>
                   </div>
                   <div className="topo-label">
-                    <div className="topo-name">{meta?.name || 'META Connection'}</div>
+                    <div className="topo-name">{meta?.name || t('meta_connection')}</div>
                     <div className="topo-sub">{meta?.phoneNumberId || '—'}</div>
                   </div>
                 </div>
@@ -160,7 +162,7 @@ export default function Connectors() {
                     <Icon name="bot" size={22} style={{ color: 'var(--success)' }} />
                   </div>
                   <div className="topo-label">
-                    <div className="topo-name">{bot?.name || 'Bot Backend'}</div>
+                    <div className="topo-name">{bot?.name || t('bot_backend')}</div>
                     <div className="topo-sub">{bot?.type || '—'}</div>
                   </div>
                 </div>
@@ -168,13 +170,13 @@ export default function Connectors() {
 
               <div className="topo-footer">
                 <div className="webhook-row">
-                  <span className="webhook-label">Webhook</span>
+                  <span className="webhook-label">{t('webhook')}</span>
                   <span className="webhook-url">{webhookUrl}</span>
                   <button
                     className={`btn-copy ${copied === item._id ? 'copied' : ''}`}
                     onClick={() => copy(webhookUrl, item._id)}
                   >
-                    {copied === item._id ? '✓ Copied' : 'Copy'}
+                    {copied === item._id ? t('copied') : t('copy')}
                   </button>
                 </div>
                 <div className="topo-controls">
@@ -184,7 +186,7 @@ export default function Connectors() {
                       onClick={() => toggleActive(item)}
                       title={item.active ? 'Deactivate' : 'Activate'}
                     />
-                    <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>{item.active ? 'Active' : 'Inactive'}</span>
+                    <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>{item.active ? t('active') : t('inactive')}</span>
                   </div>
                   <button
                     className="btn-ghost"
@@ -192,7 +194,7 @@ export default function Connectors() {
                     onClick={() => testConnection(item)}
                     disabled={testResults[item._id] === 'loading'}
                   >
-                    {testResults[item._id] === 'loading' ? '...' : 'Test'}
+                    {testResults[item._id] === 'loading' ? '...' : t('test')}
                   </button>
                   {testResults[item._id] && testResults[item._id] !== 'loading' && (
                     <span className={`conn-badge ${testResults[item._id].ok ? 'conn-ok' : 'conn-err'}`} style={{ maxWidth: 280 }}>
@@ -201,8 +203,8 @@ export default function Connectors() {
                         : `✗ ${testResults[item._id].error}`}
                     </span>
                   )}
-                  <button className="btn-ghost" style={{ fontSize: 12 }} onClick={() => openEdit(item)}>Edit</button>
-                  <button className="btn-danger" onClick={() => remove(item._id)}>Delete</button>
+                  <button className="btn-ghost" style={{ fontSize: 12 }} onClick={() => openEdit(item)}>{t('edit')}</button>
+                  <button className="btn-danger" onClick={() => remove(item._id)}>{t('delete')}</button>
                 </div>
               </div>
             </div>
@@ -211,19 +213,19 @@ export default function Connectors() {
       </div>
 
       {modal && (
-        <Modal title={selected ? 'Edit Connector' : 'New Connector'} onClose={() => setModal(false)}>
+        <Modal title={selected ? t('edit_connector') : t('new_connector')} onClose={() => setModal(false)}>
           {error && <div className="error-banner">{error}</div>}
           <form onSubmit={save} className="form-grid">
-            <label>Name
+            <label>{t('name')}
               <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
             </label>
-            <label>META Connection
+            <label>{t('meta_connection')}
               <select value={form.metaConnectionId} onChange={e => setForm(f => ({ ...f, metaConnectionId: e.target.value }))} required>
                 <option value="">Select...</option>
                 {connections.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
               </select>
             </label>
-            <label>Bot Backend
+            <label>{t('bot_backend')}
               <select value={form.botBackendId} onChange={e => setForm(f => ({ ...f, botBackendId: e.target.value }))} required>
                 <option value="">Select...</option>
                 {bots.map(b => <option key={b._id} value={b._id}>{b.name} ({b.type})</option>)}
@@ -231,11 +233,11 @@ export default function Connectors() {
             </label>
             <label className="checkbox-label">
               <input type="checkbox" checked={form.active} onChange={e => setForm(f => ({ ...f, active: e.target.checked }))} />
-              Active
+              {t('active')}
             </label>
             <div className="form-actions">
-              <button type="button" className="btn-secondary" onClick={() => setModal(false)}>Cancel</button>
-              <button type="submit" className="btn-primary">Save</button>
+              <button type="button" className="btn-secondary" onClick={() => setModal(false)}>{t('cancel')}</button>
+              <button type="submit" className="btn-primary">{t('save')}</button>
             </div>
           </form>
         </Modal>

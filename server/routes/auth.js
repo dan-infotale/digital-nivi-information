@@ -33,10 +33,12 @@ router.post('/admin/login', async (req, res) => {
 // ── Tenant user login ────────────────────────────────────────────────────────
 
 router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, tenantId } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  if (!tenantId) return res.status(400).json({ error: 'Tenant required' });
 
-  const user = await User.findOne({ email: email.toLowerCase().trim() });
+  const query = { email: email.toLowerCase().trim(), tenantId };
+  const user = await User.findOne(query);
   if (!user || !user.hashedPassword) return res.status(401).json({ error: 'Invalid credentials' });
 
   const ok = await comparePassword(password, user.hashedPassword);
@@ -52,7 +54,9 @@ router.post('/login', async (req, res) => {
 router.get('/entra/login', async (req, res) => {
   const loginType = req.query.type === 'admin' ? 'admin' : 'user';
   try {
-    const state = Buffer.from(JSON.stringify({ type: loginType })).toString('base64');
+    const stateObj = { type: loginType };
+    if (req.query.tenantId) stateObj.tenantId = req.query.tenantId;
+    const state = Buffer.from(JSON.stringify(stateObj)).toString('base64');
     const url = await getEntraAuthUrl(state);
     res.redirect(url);
   } catch (err) {
@@ -70,7 +74,7 @@ router.get('/entra/callback', async (req, res) => {
   }
 
   try {
-    const { type } = JSON.parse(Buffer.from(state, 'base64').toString());
+    const { type, tenantId } = JSON.parse(Buffer.from(state, 'base64').toString());
     const { oid, email, name } = await exchangeEntraCode(code);
 
     let token;
@@ -80,7 +84,10 @@ router.get('/entra/callback', async (req, res) => {
       if (!admin.entraOid) { admin.entraOid = oid; await admin.save(); }
       token = signToken({ type: 'system_admin', adminId: admin._id, email: admin.email, name: admin.name });
     } else {
-      const user = await User.findOne({ $or: [{ entraOid: oid }, { email }] });
+      const query = tenantId
+        ? { tenantId, $or: [{ entraOid: oid }, { email }] }
+        : { $or: [{ entraOid: oid }, { email }] };
+      const user = await User.findOne(query);
       if (!user) return res.redirect(`${frontendUrl}/login?error=not_registered`);
       if (!user.entraOid) { user.entraOid = oid; await user.save(); }
       token = signToken({ type: 'tenant_user', userId: user._id, tenantId: user.tenantId, email: user.email, name: user.name || name });

@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import api from '../api';
 
 export default function Login() {
   const { user, loginWithPassword } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [params] = useSearchParams();
 
@@ -28,7 +30,7 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      await loginWithPassword(email, password, false);
+      await loginWithPassword(email, password, false, selectedTenant._id);
       navigate('/conversations');
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed');
@@ -42,17 +44,17 @@ export default function Login() {
       <div className="login-page">
         <div className="login-card">
           <h1>Bot Platform</h1>
-          <p className="login-subtitle">Select your organization to continue</p>
+          <p className="login-subtitle">{t('select_org')}</p>
 
           {tenants.length === 0 && (
-            <div className="tenant-empty">No organizations found</div>
+            <div className="tenant-empty">{t('no_orgs')}</div>
           )}
 
           <div className="tenant-list">
-            {tenants.map(t => (
-              <button key={t._id} className="tenant-item" onClick={() => setSelectedTenant(t)}>
-                <div className="tenant-avatar">{t.name.charAt(0).toUpperCase()}</div>
-                <span className="tenant-name">{t.name}</span>
+            {tenants.map(tenant => (
+              <button key={tenant._id} className="tenant-item" onClick={() => setSelectedTenant(tenant)}>
+                <div className="tenant-avatar">{tenant.name.charAt(0).toUpperCase()}</div>
+                <span className="tenant-name">{tenant.name}</span>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <polyline points="9 18 15 12 9 6" />
                 </svg>
@@ -62,7 +64,7 @@ export default function Login() {
 
           <div className="divider">system admin</div>
           <button className="btn-ghost" style={{ width: '100%' }} onClick={() => navigate('/system-login')}>
-            Sign in as system admin
+            {t('sign_in_as_admin')}
           </button>
         </div>
       </div>
@@ -73,45 +75,40 @@ export default function Login() {
     <div className="login-page">
       <div className="login-card">
         <button className="back-btn" onClick={() => { setSelectedTenant(null); setError(''); }}>
-          ← Back
+          {t('back')}
         </button>
 
         <div className="tenant-badge-lg">
           <div className="tenant-avatar lg">{selectedTenant.name.charAt(0).toUpperCase()}</div>
           <div>
             <div className="tenant-badge-name">{selectedTenant.name}</div>
-            <div className="tenant-badge-sub">Sign in to continue</div>
+            <div className="tenant-badge-sub">{t('sign_in_to_continue')}</div>
           </div>
         </div>
 
-        {error && <div className="error-banner">{errorMessages[error] || error}</div>}
+        {error && <div className="error-banner">{t(error) !== error ? t(error) : error}</div>}
 
         <form onSubmit={handleSubmit}>
-          <label>Email
+          <label>{t('email')}
             <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus />
           </label>
-          <label>Password
+          <label>{t('password')}
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} required />
           </label>
           <button type="submit" className="btn-primary" disabled={loading}>
-            {loading ? 'Signing in...' : 'Sign in'}
+            {loading ? t('signing_in') : t('sign_in')}
           </button>
         </form>
 
-        <div className="divider">or</div>
+        <div className="divider">{t('or')}</div>
 
-        <button className="btn-entra" onClick={() => window.location.href = '/api/auth/entra/login?type=user'}>
-          <MicrosoftIcon /> Sign in with Microsoft
+        <button className="btn-entra" onClick={() => window.location.href = `/api/auth/entra/login?type=user&tenantId=${selectedTenant._id}`}>
+          <MicrosoftIcon /> {t('sign_in_microsoft')}
         </button>
       </div>
     </div>
   );
 }
-
-const errorMessages = {
-  not_registered: 'Your Microsoft account is not registered in this system. Contact your administrator.',
-  auth_failed: 'Microsoft authentication failed. Please try again.',
-};
 
 function MicrosoftIcon() {
   return (

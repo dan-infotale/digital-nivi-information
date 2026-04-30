@@ -804,7 +804,10 @@ code {
   font-family: 'JetBrains Mono', monospace;
 }
 .conv-row-info { flex: 1; min-width: 0; }
+.conv-phone-row { display: flex; align-items: center; gap: 8px; }
 .conv-phone { font-size: 13px; font-weight: 600; color: var(--fg-1); font-family: 'JetBrains Mono', monospace; }
+.conv-status-badge { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: var(--r-full); text-transform: uppercase; letter-spacing: 0.04em; }
+.conv-status-badge.closed { background: var(--danger-dim); color: var(--danger); }
 .conv-connector-tag { font-size: 11px; color: var(--accent); margin: 2px 0 4px; }
 .conv-preview {
   font-size: 12px;
@@ -1019,3 +1022,12 @@ code {
 .msg-text th, .msg-text td { border: 1px solid var(--border); padding: 3px 7px; }
 .msg-text th { background: rgba(0,0,0,0.05); font-weight: 600; }
 .msg-text hr { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
+
+.lang-toggle {
+  background: var(--bg-3); border: 1px solid var(--border);
+  color: var(--fg-2); border-radius: var(--r-sm);
+  padding: 2px 7px; font-size: 11px; font-weight: 600;
+  cursor: pointer; font-family: inherit; margin-inline-start: auto;
+  flex-shrink: 0;
+}
+.lang-toggle:hover { background: var(--accent); color: #fff; border-color: var(--accent); }

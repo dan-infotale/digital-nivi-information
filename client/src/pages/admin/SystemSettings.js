@@ -3,10 +3,12 @@ import { AdminLayout } from '../../components/Layout';
 import Modal from '../../components/Modal';
 import Icon from '../../components/Icons';
 import api from '../../api';
+import { useLanguage } from '../../context/LanguageContext';
 
 const EMPTY_PROVIDER = { name: '', baseUrl: '', apiKey: '', model: 'gpt-4o' };
 
 export default function SystemSettings() {
+  const { t } = useLanguage();
   const [settings, setSettings] = useState({ embeddingConfig: { baseUrl: '', apiKey: '', model: 'text-embedding-3-small' }, llmProviders: [] });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -76,9 +78,9 @@ export default function SystemSettings() {
   });
 
   return (
-    <AdminLayout title="System Settings">
+    <AdminLayout title={t('system_settings')}>
       <div className="page-header">
-        <h2>System Settings</h2>
+        <h2>{t('system_settings')}</h2>
       </div>
 
       {error && <div className="error-banner">{error}</div>}
@@ -89,19 +91,19 @@ export default function SystemSettings() {
         <div className="card">
           <div className="card-section">
             <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--fg-0)', marginBottom: 16 }}>
-              Embedding Config
+              {t('embedding_config')}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 12, color: 'var(--fg-3)', fontWeight: 500 }}>
-                Base URL
+                {t('base_url')}
                 <input {...ec('baseUrl')} placeholder="https://api.openai.com/v1" />
               </label>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 12, color: 'var(--fg-3)', fontWeight: 500 }}>
-                API Key
+                {t('api_key')}
                 <input type="password" {...ec('apiKey')} placeholder="sk-..." />
               </label>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 12, color: 'var(--fg-3)', fontWeight: 500 }}>
-                Model
+                {t('model')}
                 <input {...ec('model')} placeholder="text-embedding-3-small" />
               </label>
             </div>
@@ -111,20 +113,20 @@ export default function SystemSettings() {
         {/* ── LLM Providers ── */}
         <div className="card">
           <div className="card-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--fg-0)' }}>LLM Providers</div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--fg-0)' }}>{t('llm_providers')}</div>
             <button type="button" className="btn-primary" style={{ fontSize: 12, padding: '6px 12px' }} onClick={openAddProvider}>
               <Icon name="plus" size={13} />
-              Add Provider
+              {t('add_provider')}
             </button>
           </div>
           <table className="data-table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Base URL</th>
-                <th>Model</th>
-                <th>API Key</th>
-                <th>Actions</th>
+                <th>{t('name')}</th>
+                <th>{t('base_url')}</th>
+                <th>{t('model')}</th>
+                <th>{t('api_key')}</th>
+                <th>{t('actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -135,13 +137,13 @@ export default function SystemSettings() {
                   <td><code style={{ fontSize: 11 }}>{p.model || '—'}</code></td>
                   <td>{p.apiKey ? '●●●●●●' : <span style={{ color: 'var(--fg-4)' }}>not set</span>}</td>
                   <td className="actions">
-                    <button type="button" onClick={() => openEditProvider(i)}>Edit</button>
-                    <button type="button" className="btn-danger" onClick={() => removeProvider(i)}>Delete</button>
+                    <button type="button" onClick={() => openEditProvider(i)}>{t('edit')}</button>
+                    <button type="button" className="btn-danger" onClick={() => removeProvider(i)}>{t('delete')}</button>
                   </td>
                 </tr>
               ))}
               {settings.llmProviders.length === 0 && (
-                <tr><td colSpan={5} className="empty">No providers yet</td></tr>
+                <tr><td colSpan={5} className="empty">{t('no_providers')}</td></tr>
               )}
             </tbody>
           </table>
@@ -149,33 +151,33 @@ export default function SystemSettings() {
 
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <button type="submit" className="btn-primary" disabled={saving}>
-            {saved ? <><Icon name="check" size={14} /> Saved</> : saving ? 'Saving...' : 'Save Settings'}
+            {saved ? <><Icon name="check" size={14} /> {t('saved')}</> : saving ? t('saving') : t('save_settings')}
           </button>
         </div>
       </form>
 
       {providerModal && (
         <Modal
-          title={providerModal.mode === 'add' ? 'Add LLM Provider' : 'Edit LLM Provider'}
+          title={providerModal.mode === 'add' ? t('add_provider') : t('edit_provider')}
           onClose={() => setProviderModal(null)}
         >
           <div className="form-grid">
-            <label>Name
+            <label>{t('name')}
               <input {...pf('name')} placeholder="e.g. OpenAI, Azure OpenAI, Ollama" required />
             </label>
-            <label>Base URL
+            <label>{t('base_url')}
               <input {...pf('baseUrl')} placeholder="https://api.openai.com/v1" />
             </label>
-            <label>API Key
+            <label>{t('api_key')}
               <input type="password" {...pf('apiKey')} placeholder="sk-..." />
             </label>
-            <label>Default Model
+            <label>Default {t('model')}
               <input {...pf('model')} placeholder="gpt-4o" />
             </label>
             <div className="form-actions">
-              <button type="button" className="btn-secondary" onClick={() => setProviderModal(null)}>Cancel</button>
+              <button type="button" className="btn-secondary" onClick={() => setProviderModal(null)}>{t('cancel')}</button>
               <button type="button" className="btn-primary" onClick={saveProvider}>
-                {providerModal.mode === 'add' ? 'Add' : 'Update'}
+                {providerModal.mode === 'add' ? t('add_provider') : t('save')}
               </button>
             </div>
           </div>

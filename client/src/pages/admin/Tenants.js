@@ -2,8 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { AdminLayout } from '../../components/Layout';
 import Modal from '../../components/Modal';
 import api from '../../api';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function Tenants() {
+  const { t } = useLanguage();
   const [tenants, setTenants] = useState([]);
   const [modal, setModal] = useState(null); // null | 'tenant' | 'users'
   const [selected, setSelected] = useState(null);
@@ -36,7 +38,7 @@ export default function Tenants() {
   }
 
   async function deleteTenant(id) {
-    if (!window.confirm('Delete tenant? This does not delete associated data.')) return;
+    if (!window.confirm(t('delete_tenant_confirm'))) return;
     await api.delete(`/admin/tenants/${id}`);
     load();
   }
@@ -74,75 +76,75 @@ export default function Tenants() {
     setModal('tenant');
   }
 
-  function openEdit(t) {
-    setSelected(t);
-    setForm({ name: t.name, slug: t.slug });
+  function openEdit(tenant) {
+    setSelected(tenant);
+    setForm({ name: tenant.name, slug: tenant.slug });
     setError('');
     setModal('tenant');
   }
 
   return (
-    <AdminLayout title="Tenants">
+    <AdminLayout title={t('tenants')}>
       <div className="page-header">
-        <h2>Tenants</h2>
-        <button className="btn-primary" onClick={openNew}>+ New Tenant</button>
+        <h2>{t('tenants')}</h2>
+        <button className="btn-primary" onClick={openNew}>+ {t('new_tenant')}</button>
       </div>
 
       <div className="card">
         <table className="data-table">
-          <thead><tr><th>Name</th><th>Slug</th><th>Created</th><th>Actions</th></tr></thead>
+          <thead><tr><th>{t('name')}</th><th>{t('slug')}</th><th>Created</th><th>{t('actions')}</th></tr></thead>
           <tbody>
-            {tenants.map(t => (
-              <tr key={t._id}>
-                <td>{t.name}</td>
-                <td><code>{t.slug}</code></td>
-                <td>{new Date(t.createdAt).toLocaleDateString()}</td>
+            {tenants.map(tenant => (
+              <tr key={tenant._id}>
+                <td>{tenant.name}</td>
+                <td><code>{tenant.slug}</code></td>
+                <td>{new Date(tenant.createdAt).toLocaleDateString()}</td>
                 <td className="actions">
-                  <button onClick={() => openUsers(t)}>Users</button>
-                  <button onClick={() => openEdit(t)}>Edit</button>
-                  <button className="btn-danger" onClick={() => deleteTenant(t._id)}>Delete</button>
+                  <button onClick={() => openUsers(tenant)}>{t('users')}</button>
+                  <button onClick={() => openEdit(tenant)}>{t('edit')}</button>
+                  <button className="btn-danger" onClick={() => deleteTenant(tenant._id)}>{t('delete')}</button>
                 </td>
               </tr>
             ))}
-            {tenants.length === 0 && <tr><td colSpan={4} className="empty">No tenants yet</td></tr>}
+            {tenants.length === 0 && <tr><td colSpan={4} className="empty">{t('no_tenants')}</td></tr>}
           </tbody>
         </table>
       </div>
 
       {modal === 'tenant' && (
-        <Modal title={selected ? 'Edit Tenant' : 'New Tenant'} onClose={() => setModal(null)}>
+        <Modal title={selected ? t('edit_tenant') : t('new_tenant')} onClose={() => setModal(null)}>
           {error && <div className="error-banner">{error}</div>}
           <form onSubmit={saveTenant} className="form-grid">
-            <label>Name<input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required /></label>
-            <label>Slug<input value={form.slug} onChange={e => setForm(f => ({ ...f, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') }))} required /></label>
+            <label>{t('name')}<input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required /></label>
+            <label>{t('slug')}<input value={form.slug} onChange={e => setForm(f => ({ ...f, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') }))} required /></label>
             <div className="form-actions">
-              <button type="button" className="btn-secondary" onClick={() => setModal(null)}>Cancel</button>
-              <button type="submit" className="btn-primary">Save</button>
+              <button type="button" className="btn-secondary" onClick={() => setModal(null)}>{t('cancel')}</button>
+              <button type="submit" className="btn-primary">{t('save')}</button>
             </div>
           </form>
         </Modal>
       )}
 
       {modal === 'users' && selected && (
-        <Modal title={`Users — ${selected.name}`} onClose={() => setModal(null)}>
+        <Modal title={`${t('manage_users')} — ${selected.name}`} onClose={() => setModal(null)}>
           {error && <div className="error-banner">{error}</div>}
           <form onSubmit={addUser} className="inline-form">
-            <input placeholder="Name" value={userForm.name} onChange={e => setUserForm(f => ({ ...f, name: e.target.value }))} />
-            <input type="email" placeholder="Email *" value={userForm.email} onChange={e => setUserForm(f => ({ ...f, email: e.target.value }))} required />
-            <input type="password" placeholder="Password" value={userForm.password} onChange={e => setUserForm(f => ({ ...f, password: e.target.value }))} />
-            <button type="submit" className="btn-primary">Add</button>
+            <input placeholder={t('name')} value={userForm.name} onChange={e => setUserForm(f => ({ ...f, name: e.target.value }))} />
+            <input type="email" placeholder={`${t('email')} *`} value={userForm.email} onChange={e => setUserForm(f => ({ ...f, email: e.target.value }))} required />
+            <input type="password" placeholder={t('password')} value={userForm.password} onChange={e => setUserForm(f => ({ ...f, password: e.target.value }))} />
+            <button type="submit" className="btn-primary">{t('add_user')}</button>
           </form>
           <table className="data-table mt">
-            <thead><tr><th>Name</th><th>Email</th><th></th></tr></thead>
+            <thead><tr><th>{t('name')}</th><th>{t('email')}</th><th></th></tr></thead>
             <tbody>
               {users.map(u => (
                 <tr key={u._id}>
                   <td>{u.name}</td>
                   <td>{u.email}</td>
-                  <td><button className="btn-danger" onClick={() => deleteUser(u._id)}>Remove</button></td>
+                  <td><button className="btn-danger" onClick={() => deleteUser(u._id)}>{t('delete')}</button></td>
                 </tr>
               ))}
-              {users.length === 0 && <tr><td colSpan={3} className="empty">No users</td></tr>}
+              {users.length === 0 && <tr><td colSpan={3} className="empty">{t('no_users')}</td></tr>}
             </tbody>
           </table>
         </Modal>

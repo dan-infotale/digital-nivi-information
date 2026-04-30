@@ -102,6 +102,11 @@ async function handleMessage(connector, { from, text, messageId }) {
   // DB-level dedup
   if (conversation.messages.some(m => m.whatsappMessageId === messageId)) return;
 
+  // Re-open closed conversations
+  if (conversation.status === 'closed') {
+    conversation.status = 'active';
+  }
+
   conversation.messages.push({ direction: 'incoming', body: text, whatsappMessageId: messageId });
   conversation.lastActivity = new Date();
   await conversation.save();
