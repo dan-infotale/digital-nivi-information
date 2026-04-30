@@ -40,6 +40,7 @@ const clientBuild = path.join(__dirname, '..', 'client', 'build');
 const clientPublic = path.join(__dirname, '..', 'client', 'public');
 app.use(express.static(clientBuild));
 app.use(express.static(clientPublic));
+app.get('/audio.jpg', (req, res) => res.sendFile(path.join(clientPublic, 'audio.jpg')));
 app.get('*', (req, res) => res.sendFile(path.join(clientBuild, 'index.html')));
 
 mongoose.connection.on('error', err => console.error('[MongoDB] Error:', err.message));
