@@ -93,6 +93,8 @@ const UNSUPPORTED_TYPE_MESSAGES = {
   video: 'סרטונים',
   document: 'מסמכים',
   sticker: 'מדבקות',
+  contacts: 'אנשי קשר',
+  location: 'מיקום',
 };
 
 async function handleUnsupportedMessage(connector, { from, type, messageId }) {

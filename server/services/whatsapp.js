@@ -83,7 +83,7 @@ function extractMessages(body) {
                 timestamp: msg.timestamp,
                 type: 'text',
               });
-            } else if (['image', 'audio', 'video', 'document', 'sticker', 'voice'].includes(msg.type)) {
+            } else if (['image', 'audio', 'video', 'document', 'sticker', 'voice', 'contacts', 'location'].includes(msg.type)) {
               messages.push({
                 from: msg.from,
                 text: null,
