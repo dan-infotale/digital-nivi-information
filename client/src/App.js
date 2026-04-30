@@ -52,6 +52,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/system" element={<SystemLogin />} />
+          <Route path="/system-login" element={<SystemLogin />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
 
           <Route path="/admin/tenants" element={<RequireAdmin><Tenants /></RequireAdmin>} />
