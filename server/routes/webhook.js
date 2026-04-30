@@ -77,6 +77,12 @@ router.post('/:connectorId', async (req, res) => {
   }
 });
 
+const NEW_SESSION_TRIGGERS = ['שיחה חדשה', 'התחל שיחה חדשה', 'new conversation', 'restart'];
+
+function isNewSessionRequest(text) {
+  return NEW_SESSION_TRIGGERS.some(t => text.trim().toLowerCase() === t.toLowerCase());
+}
+
 async function handleMessage(connector, { from, text, messageId }) {
   const meta = connector.metaConnectionId;
   const bot = connector.botBackendId;
@@ -109,6 +115,34 @@ async function handleMessage(connector, { from, text, messageId }) {
 
   conversation.messages.push({ direction: 'incoming', body: text, whatsappMessageId: messageId });
   conversation.lastActivity = new Date();
+
+  // Handle new session request
+  if (!isNew && isNewSessionRequest(text)) {
+    const adapter = await createAdapter(bot);
+    if (bot.type === 'nivi') {
+      const ids = adapter.generateIds();
+      conversation.niviUserId = ids.niviUserId;
+      conversation.niviSessionId = ids.niviSessionId;
+      await conversation.save();
+      try {
+        await adapter.initialize(conversation);
+      } catch (err) {
+        console.error(`[Webhook] New session init failed for ${from}:`, err.message);
+        await sendError(meta, conversation, from, 'מצטערים, לא הצלחנו ליצור חיבור למערכת. אנא נסה שוב.');
+        return;
+      }
+    } else {
+      conversation.openaiHistory = [];
+      await conversation.save();
+    }
+    const confirmMsg = 'בוודאי! מתחילים שיחה חדשה. כיצד אוכל לעזור?';
+    conversation.messages.push({ direction: 'outgoing', body: confirmMsg });
+    conversation.lastActivity = new Date();
+    await conversation.save();
+    await sendMessage(meta, from, confirmMsg);
+    return;
+  }
+
   await conversation.save();
 
   const adapter = await createAdapter(bot);
