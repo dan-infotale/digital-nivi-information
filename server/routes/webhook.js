@@ -86,7 +86,7 @@ router.post('/:connectorId', async (req, res) => {
   }
 });
 
-const UNSUPPORTED_TYPE_MESSAGES = {
+const UNSUPPORTED_TYPE_LABELS = {
   image: 'תמונות',
   audio: 'הודעות קוליות',
   voice: 'הודעות קוליות',
@@ -94,12 +94,13 @@ const UNSUPPORTED_TYPE_MESSAGES = {
   document: 'מסמכים',
   sticker: 'מדבקות',
   contacts: 'אנשי קשר',
-  location: 'מיקום',
+  location: 'שיתוף מיקום',
 };
 
-async function handleUnsupportedMessage(connector, { from, type, messageId }) {
+async function handleUnsupportedMessage(connector, { from, type }) {
   const meta = connector.metaConnectionId;
-  const msg = 'לא ניתן לצרף תמונות בשלב זה. אשמח להמשיך לסייע בהודעות כתובות.';
+  const label = UNSUPPORTED_TYPE_LABELS[type] || 'תוכן זה';
+  const msg = `לא ניתן לצרף ${label} בשלב זה. אשמח להמשיך לסייע בהודעות כתובות.`;
   try {
     await sendMessage(meta, from, msg);
   } catch (err) {
