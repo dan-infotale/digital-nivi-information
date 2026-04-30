@@ -81,10 +81,6 @@ export default function Conversations() {
           <span className="stat-number">{stats.outgoingMessages}</span>
           <span className="stat-label">הודעות בוט</span>
         </div>
-        <div className="stat-card">
-          <span className="stat-number">{stats.avgDurationMinutes}</span>
-          <span className="stat-label">משך ממוצע (דק')</span>
-        </div>
       </div>
 
       <div className="inbox">
