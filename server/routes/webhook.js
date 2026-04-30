@@ -5,6 +5,7 @@ const BotBackend = require('../models/BotBackend');
 const Conversation = require('../models/Conversation');
 const { sendMessage, extractMessages } = require('../services/whatsapp');
 const { createAdapter } = require('../services/adapters/AdapterFactory');
+const { containsPii, redactPii } = require('../services/piiFilter');
 
 const router = express.Router();
 
@@ -139,6 +140,19 @@ async function handleMessage(connector, { from, text, messageId }) {
   // Re-open closed conversations
   if (conversation.status === 'closed') {
     conversation.status = 'active';
+  }
+
+  // PII/PCI guard — redact, warn user, skip bot
+  if (containsPii(text)) {
+    const redacted = redactPii(text);
+    conversation.messages.push({ direction: 'incoming', body: redacted, whatsappMessageId: messageId });
+    conversation.lastActivity = new Date();
+    await conversation.save();
+    const warning = 'אנא המנע משליחה של מידע אישי בשיחה זו';
+    conversation.messages.push({ direction: 'outgoing', body: warning });
+    await conversation.save();
+    await sendMessage(meta, from, warning);
+    return;
   }
 
   conversation.messages.push({ direction: 'incoming', body: text, whatsappMessageId: messageId });
