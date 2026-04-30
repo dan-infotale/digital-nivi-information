@@ -59,7 +59,7 @@ export function AdminLayout({ children, title }) {
     <div className="app-layout">
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <div className="brand-icon"><img src="/audio.jpg" alt="logo" style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover' }} /></div>
+          <div className="brand-icon"><img src="/Picture1.png" alt="logo" style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover' }} /></div>
           <div>
             <div className="brand-name">Bot Platform</div>
             <div className="brand-sub">{t('system_admin')}</div>
@@ -101,7 +101,7 @@ export function TenantLayout({ children, title }) {
     <div className="app-layout">
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <div className="brand-icon"><img src="/audio.jpg" alt="logo" style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover' }} /></div>
+          <div className="brand-icon"><img src="/Picture1.png" alt="logo" style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover' }} /></div>
           <div>
             <div className="brand-name">Bot Platform</div>
             <div className="brand-sub" style={{ maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
