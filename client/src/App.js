@@ -6,6 +6,7 @@ function App() {
   const [conversations, setConversations] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [stats, setStats] = useState({ totalConversations: 0, todayConversations: 0, totalMessages: 0 });
+  const [connStatus, setConnStatus] = useState(null); // null | 'checking' | { ok, name?, error? }
 
   useEffect(() => {
     fetchStats();
@@ -35,6 +36,16 @@ function App() {
     }
   }
 
+  async function checkConnection() {
+    setConnStatus('checking');
+    try {
+      const { data } = await axios.get('/api/check-connection');
+      setConnStatus(data);
+    } catch (err) {
+      setConnStatus({ ok: false, error: err.message });
+    }
+  }
+
   async function openConversation(id) {
     try {
       const { data } = await axios.get(`/api/conversations/${id}`);
@@ -60,6 +71,16 @@ function App() {
           <div className="stat-card">
             <span className="stat-number">{stats.totalMessages}</span>
             <span className="stat-label">הודעות</span>
+          </div>
+          <div className="check-connection">
+            <button className="check-btn" onClick={checkConnection} disabled={connStatus === 'checking'}>
+              {connStatus === 'checking' ? '...' : '🔗 בדוק חיבור'}
+            </button>
+            {connStatus && connStatus !== 'checking' && (
+              <span className={`conn-badge ${connStatus.ok ? 'conn-ok' : 'conn-err'}`}>
+                {connStatus.ok ? `✓ ${connStatus.name || 'מחובר'}` : `✗ ${connStatus.error}`}
+              </span>
+            )}
           </div>
         </div>
       </header>

@@ -189,3 +189,37 @@ body {
   font-size: 18px;
   color: #888;
 }
+
+.check-connection {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.check-btn {
+  background: rgba(255,255,255,0.2);
+  border: 1px solid rgba(255,255,255,0.4);
+  color: white;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.check-btn:hover:not(:disabled) { background: rgba(255,255,255,0.3); }
+.check-btn:disabled { opacity: 0.6; cursor: default; }
+
+.conn-badge {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  white-space: nowrap;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.conn-ok  { background: rgba(37,211,102,0.25); color: #afffcc; }
+.conn-err { background: rgba(255,80,80,0.25);  color: #ffb3b3; }

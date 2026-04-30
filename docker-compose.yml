@@ -1,0 +1,26 @@
+services:
+  app:
+    build: .
+    ports:
+      - "${PORT:-3010}:${PORT:-3010}"
+    env_file: .env
+    environment:
+      MONGODB_URI: mongodb://mongo:27017/nivi-integration
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:7
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  mongo_data:
