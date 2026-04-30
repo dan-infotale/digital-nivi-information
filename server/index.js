@@ -81,6 +81,7 @@ mongoose.connect(process.env.MONGODB_URI)
     await migrateConversationIndex();
     await ensureInitialAdmin();
     require('./services/autoClose');
+    require('./services/retention');
     app.listen(PORT, () => {
       console.log(`[Server] Running on port ${PORT}`);
       console.log(`[Webhook] URLs: /webhook/<connectorId>`);

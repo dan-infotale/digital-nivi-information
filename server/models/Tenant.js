@@ -9,6 +9,10 @@ const schema = new mongoose.Schema({
     clientSecret: { type: String, default: '' },
     label: { type: String, default: 'SSO' },
   },
+  retention: {
+    enabled: { type: Boolean, default: false },
+    days: { type: Number, default: 90 },
+  },
   createdAt: { type: Date, default: Date.now },
 });
 module.exports = mongoose.model('Tenant', schema);

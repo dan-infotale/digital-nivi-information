@@ -10,7 +10,8 @@ export default function Tenants() {
   const [modal, setModal] = useState(null); // null | 'tenant' | 'users'
   const [selected, setSelected] = useState(null);
   const EMPTY_OIDC = { enabled: false, discoveryUrl: '', clientId: '', clientSecret: '', label: 'SSO' };
-  const [form, setForm] = useState({ name: '', slug: '', oidc: EMPTY_OIDC });
+  const EMPTY_RETENTION = { enabled: false, days: 90 };
+  const [form, setForm] = useState({ name: '', slug: '', oidc: EMPTY_OIDC, retention: EMPTY_RETENTION });
   const [users, setUsers] = useState([]);
   const [userForm, setUserForm] = useState({ name: '', email: '', password: '' });
   const [error, setError] = useState('');
@@ -72,14 +73,14 @@ export default function Tenants() {
 
   function openNew() {
     setSelected(null);
-    setForm({ name: '', slug: '', oidc: EMPTY_OIDC });
+    setForm({ name: '', slug: '', oidc: EMPTY_OIDC, retention: EMPTY_RETENTION });
     setError('');
     setModal('tenant');
   }
 
   function openEdit(tenant) {
     setSelected(tenant);
-    setForm({ name: tenant.name, slug: tenant.slug, oidc: tenant.oidc || EMPTY_OIDC });
+    setForm({ name: tenant.name, slug: tenant.slug, oidc: tenant.oidc || EMPTY_OIDC, retention: tenant.retention || EMPTY_RETENTION });
     setError('');
     setModal('tenant');
   }
@@ -143,6 +144,28 @@ export default function Tenants() {
                     Callback URL: <code>{window.location.origin}/api/auth/oidc/callback</code>
                   </div>
                 </>)}
+              </div>
+            </fieldset>
+
+            <fieldset style={{ marginTop: 8 }}>
+              <legend style={{ fontWeight: 600, fontSize: 13 }}>שמירת שיחות</legend>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
+                <label className="checkbox-label">
+                  <input type="checkbox" checked={!!form.retention?.enabled} onChange={e => setForm(f => ({ ...f, retention: { ...f.retention, enabled: e.target.checked } }))} />
+                  מחק שיחות ישנות אוטומטית
+                </label>
+                {form.retention?.enabled && (
+                  <label>מחק שיחות ישנות מ
+                    <input
+                      type="number"
+                      min="1"
+                      style={{ width: 80, marginInline: 6 }}
+                      value={form.retention.days}
+                      onChange={e => setForm(f => ({ ...f, retention: { ...f.retention, days: parseInt(e.target.value) || 90 } }))}
+                    />
+                    ימים
+                  </label>
+                )}
               </div>
             </fieldset>
 

@@ -59,6 +59,10 @@ function scrubTenant(t) {
       clientSecret: t.oidc.clientSecret ? '***' : '',
       label: t.oidc.label || 'SSO',
     } : undefined,
+    retention: {
+      enabled: t.retention?.enabled || false,
+      days: t.retention?.days ?? 90,
+    },
   };
 }
 
@@ -80,7 +84,7 @@ router.post('/tenants', async (req, res) => {
 });
 
 router.put('/tenants/:id', async (req, res) => {
-  const { name, slug, oidc } = req.body;
+  const { name, slug, oidc, retention } = req.body;
   const update = {};
   if (name !== undefined) update.name = name;
   if (slug !== undefined) update.slug = slug;
@@ -94,6 +98,12 @@ router.put('/tenants/:id', async (req, res) => {
       label: oidc.label || 'SSO',
     };
     invalidateOidcCache(req.params.id);
+  }
+  if (retention !== undefined) {
+    update.retention = {
+      enabled: !!retention.enabled,
+      days: Math.max(1, parseInt(retention.days) || 90),
+    };
   }
   try {
     const tenant = await Tenant.findByIdAndUpdate(req.params.id, update, { new: true }).lean();
