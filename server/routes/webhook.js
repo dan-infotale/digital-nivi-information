@@ -166,6 +166,10 @@ async function handleMessage(connector, { from, text, messageId }) {
       reply = await adapter.sendMessage(conversation, text);
     }
 
+    if (isNew) {
+      reply += '\n\n_להתחלת שיחה חדשה אנא הקלד "שיחה חדשה"_';
+    }
+
     conversation.messages.push({ direction: 'outgoing', body: reply });
     conversation.lastActivity = new Date();
     await conversation.save();
