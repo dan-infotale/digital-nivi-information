@@ -66,6 +66,14 @@ router.post('/:connectorId', async (req, res) => {
     const messages = extractMessages(req.body);
     for (const msg of messages) {
       if (isDuplicate(msg.messageId)) continue;
+      if (msg.type !== 'text') {
+        withPhoneLock(`${connector._id}:${msg.from}`, () =>
+          handleUnsupportedMessage(connector, msg).catch(err =>
+            console.error(`[Webhook] Error handling unsupported message for ${msg.from}:`, err.message)
+          )
+        );
+        continue;
+      }
       withPhoneLock(`${connector._id}:${msg.from}`, () =>
         handleMessage(connector, msg).catch(err =>
           console.error(`[Webhook] Unhandled error for ${msg.from}:`, err.message)
@@ -76,6 +84,26 @@ router.post('/:connectorId', async (req, res) => {
     console.error('[Webhook] Error processing request:', err.message);
   }
 });
+
+const UNSUPPORTED_TYPE_MESSAGES = {
+  image: 'תמונות',
+  audio: 'הודעות קוליות',
+  voice: 'הודעות קוליות',
+  video: 'סרטונים',
+  document: 'מסמכים',
+  sticker: 'מדבקות',
+};
+
+async function handleUnsupportedMessage(connector, { from, type, messageId }) {
+  const meta = connector.metaConnectionId;
+  const typeName = UNSUPPORTED_TYPE_MESSAGES[type] || 'קבצים מסוג זה';
+  const msg = `מצטערים, אין באפשרותנו לקבל ${typeName}. אנא שלח הודעת טקסט.`;
+  try {
+    await sendMessage(meta, from, msg);
+  } catch (err) {
+    console.error(`[Webhook] Failed to send unsupported-type reply to ${from}:`, err.message);
+  }
+}
 
 const NEW_SESSION_TRIGGERS = ['שיחה חדשה', 'התחל שיחה חדשה', 'new conversation', 'restart'];
 

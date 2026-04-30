@@ -80,6 +80,15 @@ function extractMessages(body) {
                 text: msg.text.body,
                 messageId: msg.id,
                 timestamp: msg.timestamp,
+                type: 'text',
+              });
+            } else if (['image', 'audio', 'video', 'document', 'sticker', 'voice'].includes(msg.type)) {
+              messages.push({
+                from: msg.from,
+                text: null,
+                messageId: msg.id,
+                timestamp: msg.timestamp,
+                type: msg.type,
               });
             }
           }
