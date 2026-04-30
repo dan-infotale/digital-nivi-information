@@ -22,6 +22,6 @@ const schema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
 });
 
-schema.index({ connectorId: 1, phoneNumber: 1 }, { unique: true });
+schema.index({ connectorId: 1, phoneNumber: 1, status: 1 });
 
 module.exports = mongoose.model('Conversation', schema);

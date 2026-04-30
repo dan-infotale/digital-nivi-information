@@ -61,9 +61,24 @@ async function ensureInitialAdmin() {
   }
 }
 
+async function migrateConversationIndex() {
+  try {
+    const col = mongoose.connection.collection('conversations');
+    const indexes = await col.indexes();
+    const oldUnique = indexes.find(i => i.unique && i.key?.connectorId && i.key?.phoneNumber && !i.key?.status);
+    if (oldUnique) {
+      await col.dropIndex(oldUnique.name);
+      console.log('[Migration] Dropped unique index on conversations(connectorId, phoneNumber)');
+    }
+  } catch (err) {
+    console.warn('[Migration] Could not drop old conversation index:', err.message);
+  }
+}
+
 mongoose.connect(process.env.MONGODB_URI)
   .then(async () => {
     console.log('[MongoDB] Connected');
+    await migrateConversationIndex();
     await ensureInitialAdmin();
     require('./services/autoClose');
     app.listen(PORT, () => {

@@ -112,35 +112,35 @@ function isNewSessionRequest(text) {
   return NEW_SESSION_TRIGGERS.some(t => text.trim().toLowerCase() === t.toLowerCase());
 }
 
+async function createNewConversation(connector, bot, from) {
+  const conv = new Conversation({
+    tenantId: connector.tenantId,
+    connectorId: connector._id,
+    phoneNumber: from,
+  });
+  if (bot.type === 'nivi') {
+    const adapter = await createAdapter(bot);
+    const ids = adapter.generateIds();
+    conv.niviUserId = ids.niviUserId;
+    conv.niviSessionId = ids.niviSessionId;
+  }
+  return conv;
+}
+
 async function handleMessage(connector, { from, text, messageId }) {
   const meta = connector.metaConnectionId;
   const bot = connector.botBackendId;
 
-  let conversation = await Conversation.findOne({ connectorId: connector._id, phoneNumber: from });
+  // Only match active conversations — closed ones stay as historical records
+  let conversation = await Conversation.findOne({ connectorId: connector._id, phoneNumber: from, status: 'active' });
   const isNew = !conversation;
 
   if (!conversation) {
-    conversation = new Conversation({
-      tenantId: connector.tenantId,
-      connectorId: connector._id,
-      phoneNumber: from,
-    });
-
-    if (bot.type === 'nivi') {
-      const adapter = await createAdapter(bot);
-      const ids = adapter.generateIds();
-      conversation.niviUserId = ids.niviUserId;
-      conversation.niviSessionId = ids.niviSessionId;
-    }
+    conversation = await createNewConversation(connector, bot, from);
   }
 
   // DB-level dedup
   if (conversation.messages.some(m => m.whatsappMessageId === messageId)) return;
-
-  // Re-open closed conversations
-  if (conversation.status === 'closed') {
-    conversation.status = 'active';
-  }
 
   // PII/PCI guard — redact, warn user, skip bot (only if enabled on the bot backend)
   if (bot.config?.piiFilter && containsPii(text)) {
@@ -155,36 +155,34 @@ async function handleMessage(connector, { from, text, messageId }) {
     return;
   }
 
-  conversation.messages.push({ direction: 'incoming', body: text, whatsappMessageId: messageId });
-  conversation.lastActivity = new Date();
-
-  // Handle new session request
+  // Handle new session request — close current conv, open a fresh document
   if (!isNew && isNewSessionRequest(text)) {
-    const adapter = await createAdapter(bot);
+    conversation.messages.push({ direction: 'incoming', body: text, whatsappMessageId: messageId });
+    conversation.lastActivity = new Date();
+    conversation.status = 'closed';
+    await conversation.save();
+
+    const newConv = await createNewConversation(connector, bot, from);
     if (bot.type === 'nivi') {
-      const ids = adapter.generateIds();
-      conversation.niviUserId = ids.niviUserId;
-      conversation.niviSessionId = ids.niviSessionId;
-      await conversation.save();
+      await newConv.save();
       try {
-        await adapter.initialize(conversation);
+        await createAdapter(bot).then(a => a.initialize(newConv));
       } catch (err) {
         console.error(`[Webhook] New session init failed for ${from}:`, err.message);
-        await sendError(meta, conversation, from, 'מצטערים, לא הצלחנו ליצור חיבור למערכת. אנא נסה שוב.');
+        await sendError(meta, newConv, from, 'מצטערים, לא הצלחנו ליצור חיבור למערכת. אנא נסה שוב.');
         return;
       }
-    } else {
-      conversation.openaiHistory = [];
-      await conversation.save();
     }
     const confirmMsg = 'בוודאי! מתחילים שיחה חדשה. כיצד אוכל לעזור?';
-    conversation.messages.push({ direction: 'outgoing', body: confirmMsg });
-    conversation.lastActivity = new Date();
-    await conversation.save();
+    newConv.messages.push({ direction: 'outgoing', body: confirmMsg });
+    newConv.lastActivity = new Date();
+    await newConv.save();
     await sendMessage(meta, from, confirmMsg);
     return;
   }
 
+  conversation.messages.push({ direction: 'incoming', body: text, whatsappMessageId: messageId });
+  conversation.lastActivity = new Date();
   await conversation.save();
 
   const adapter = await createAdapter(bot);
