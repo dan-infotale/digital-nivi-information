@@ -7,6 +7,13 @@ const { requireSystemAdmin, requireTenantUser } = require('../middleware/auth');
 
 const router = express.Router();
 
+// ── Public tenant list ───────────────────────────────────────────────────────
+
+router.get('/tenants', async (req, res) => {
+  const tenants = await Tenant.find({}, '_id name slug').lean();
+  res.json(tenants);
+});
+
 // ── System admin login ───────────────────────────────────────────────────────
 
 router.post('/admin/login', async (req, res) => {
