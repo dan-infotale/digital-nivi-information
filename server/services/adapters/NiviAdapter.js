@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { StringDecoder } = require('string_decoder');
 const { v4: uuidv4 } = require('uuid');
 
 async function withRetry(fn, { retries = 2, label = 'op' } = {}) {
@@ -73,9 +74,10 @@ class NiviAdapter {
     return new Promise((resolve, reject) => {
       let fullText = '';
       let buffer = '';
+      const decoder = new StringDecoder('utf8');
 
       response.data.on('data', (chunk) => {
-        buffer += chunk.toString();
+        buffer += decoder.write(chunk);
         const lines = buffer.split('\n');
         buffer = lines.pop();
         for (const line of lines) {
@@ -100,6 +102,7 @@ class NiviAdapter {
       });
 
       response.data.on('end', () => {
+        buffer += decoder.end(); // flush any remaining bytes
         resolve(fullText || 'לא התקבלה תשובה מהמערכת.');
       });
 
