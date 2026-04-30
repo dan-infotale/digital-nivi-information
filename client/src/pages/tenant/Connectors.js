@@ -13,6 +13,7 @@ export default function Connectors() {
   const [form, setForm] = useState({ name: '', metaConnectionId: '', botBackendId: '', active: true });
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(null);
+  const [testResults, setTestResults] = useState({});
 
   const webhookBase = window.location.origin;
 
@@ -73,6 +74,26 @@ export default function Connectors() {
   async function toggleActive(item) {
     await api.put(`/connectors/${item._id}`, { ...item, active: !item.active });
     load();
+  }
+
+  async function testConnection(item) {
+    const id = item._id;
+    const metaId = item.metaConnectionId?._id || item.metaConnectionId;
+    const botId = item.botBackendId?._id || item.botBackendId;
+    setTestResults(r => ({ ...r, [id]: 'loading' }));
+    try {
+      const [metaRes, botRes] = await Promise.all([
+        api.post(`/meta-connections/${metaId}/test`).then(r => r.data),
+        api.post(`/bot-backends/${botId}/test`).then(r => r.data),
+      ]);
+      const ok = metaRes.ok && botRes.ok;
+      const name = ok
+        ? `WhatsApp: ${metaRes.name || '✓'} · Bot: ${botRes.name || '✓'}`
+        : [!metaRes.ok && `WhatsApp: ${metaRes.error}`, !botRes.ok && `Bot: ${botRes.error}`].filter(Boolean).join(' · ');
+      setTestResults(r => ({ ...r, [id]: { ok, name: ok ? name : undefined, error: ok ? undefined : name } }));
+    } catch {
+      setTestResults(r => ({ ...r, [id]: { ok: false, error: 'Request failed' } }));
+    }
   }
 
   function copy(text, id) {
@@ -165,6 +186,21 @@ export default function Connectors() {
                     />
                     <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>{item.active ? 'Active' : 'Inactive'}</span>
                   </div>
+                  <button
+                    className="btn-ghost"
+                    style={{ fontSize: 12 }}
+                    onClick={() => testConnection(item)}
+                    disabled={testResults[item._id] === 'loading'}
+                  >
+                    {testResults[item._id] === 'loading' ? '...' : 'Test'}
+                  </button>
+                  {testResults[item._id] && testResults[item._id] !== 'loading' && (
+                    <span className={`conn-badge ${testResults[item._id].ok ? 'conn-ok' : 'conn-err'}`} style={{ maxWidth: 280 }}>
+                      {testResults[item._id].ok
+                        ? `✓ ${testResults[item._id].name}`
+                        : `✗ ${testResults[item._id].error}`}
+                    </span>
+                  )}
                   <button className="btn-ghost" style={{ fontSize: 12 }} onClick={() => openEdit(item)}>Edit</button>
                   <button className="btn-danger" onClick={() => remove(item._id)}>Delete</button>
                 </div>

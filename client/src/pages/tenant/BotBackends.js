@@ -17,6 +17,7 @@ export default function BotBackends() {
   const [form, setForm] = useState({ name: '', knowledgeBaseId: '' });
   const [config, setConfig] = useState(AGENT_DEFAULTS);
   const [error, setError] = useState('');
+  const [testResults, setTestResults] = useState({});
 
   const load = useCallback(async () => {
     const [b, k, p] = await Promise.all([
@@ -77,6 +78,16 @@ export default function BotBackends() {
     load();
   }
 
+  async function testConnection(id) {
+    setTestResults(r => ({ ...r, [id]: 'loading' }));
+    try {
+      const { data } = await api.post(`/bot-backends/${id}/test`);
+      setTestResults(r => ({ ...r, [id]: data }));
+    } catch {
+      setTestResults(r => ({ ...r, [id]: { ok: false, error: 'Request failed' } }));
+    }
+  }
+
   const cfg = (k, type_ = 'text') => ({
     value: config[k] ?? '',
     onChange: e => setConfig(c => ({ ...c, [k]: type_ === 'number' ? parseFloat(e.target.value) : e.target.value })),
@@ -125,6 +136,19 @@ export default function BotBackends() {
                   </code>
                 </td>
                 <td className="actions">
+                  <button
+                    onClick={() => testConnection(item._id)}
+                    disabled={testResults[item._id] === 'loading'}
+                  >
+                    {testResults[item._id] === 'loading' ? '...' : 'Test'}
+                  </button>
+                  {testResults[item._id] && testResults[item._id] !== 'loading' && (
+                    <span className={`conn-badge ${testResults[item._id].ok ? 'conn-ok' : 'conn-err'}`}>
+                      {testResults[item._id].ok
+                        ? `✓ ${testResults[item._id].name || 'Connected'}`
+                        : `✗ ${testResults[item._id].error}`}
+                    </span>
+                  )}
                   <button onClick={() => openEdit(item)}>Edit</button>
                   <button className="btn-danger" onClick={() => remove(item._id)}>Delete</button>
                 </td>

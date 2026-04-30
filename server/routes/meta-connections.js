@@ -1,4 +1,5 @@
 const express = require('express');
+const axios = require('axios');
 const MetaConnection = require('../models/MetaConnection');
 const { requireTenantUser } = require('../middleware/auth');
 
@@ -41,6 +42,23 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   await MetaConnection.findOneAndDelete({ _id: req.params.id, tenantId: req.user.tenantId });
   res.json({ ok: true });
+});
+
+router.post('/:id/test', async (req, res) => {
+  const item = await MetaConnection.findOne({ _id: req.params.id, tenantId: req.user.tenantId });
+  if (!item) return res.status(404).json({ ok: false, error: 'Not found' });
+  try {
+    const phoneEndpoint = item.apiUrl.replace(/\/messages$/, '');
+    const { data } = await axios.get(phoneEndpoint, {
+      headers: { Authorization: `Bearer ${item.token}` },
+      timeout: 8000,
+    });
+    res.json({ ok: true, name: data.verified_name || data.display_phone_number || data.id });
+  } catch (err) {
+    const status = err.response?.status;
+    const message = err.response?.data?.error?.message || err.message;
+    res.json({ ok: false, error: `${status ? `${status}: ` : ''}${message}` });
+  }
 });
 
 module.exports = router;

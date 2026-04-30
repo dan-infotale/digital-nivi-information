@@ -14,6 +14,7 @@ export default function MetaConnections() {
   const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(null);
+  const [testResults, setTestResults] = useState({});
 
   const webhookBase = window.location.origin;
 
@@ -24,6 +25,16 @@ export default function MetaConnections() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  async function testConnection(id) {
+    setTestResults(r => ({ ...r, [id]: 'loading' }));
+    try {
+      const { data } = await api.post(`/meta-connections/${id}/test`);
+      setTestResults(r => ({ ...r, [id]: data }));
+    } catch {
+      setTestResults(r => ({ ...r, [id]: { ok: false, error: 'Request failed' } }));
+    }
+  }
 
   function copy(text, id) {
     navigator.clipboard.writeText(text);
@@ -93,6 +104,20 @@ export default function MetaConnections() {
                   </div>
                 </div>
                 <div className="meta-actions">
+                  <button
+                    className="btn-ghost"
+                    onClick={() => testConnection(item._id)}
+                    disabled={testResults[item._id] === 'loading'}
+                  >
+                    {testResults[item._id] === 'loading' ? '...' : 'Test'}
+                  </button>
+                  {testResults[item._id] && testResults[item._id] !== 'loading' && (
+                    <span className={`conn-badge ${testResults[item._id].ok ? 'conn-ok' : 'conn-err'}`}>
+                      {testResults[item._id].ok
+                        ? `✓ ${testResults[item._id].name || 'Connected'}`
+                        : `✗ ${testResults[item._id].error}`}
+                    </span>
+                  )}
                   <button className="btn-ghost" onClick={() => openEdit(item)}>Edit</button>
                   <button className="btn-danger" onClick={() => remove(item._id)}>Delete</button>
                 </div>
