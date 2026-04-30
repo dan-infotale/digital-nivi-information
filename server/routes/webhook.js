@@ -99,8 +99,7 @@ const UNSUPPORTED_TYPE_MESSAGES = {
 
 async function handleUnsupportedMessage(connector, { from, type, messageId }) {
   const meta = connector.metaConnectionId;
-  const typeName = UNSUPPORTED_TYPE_MESSAGES[type] || 'קבצים מסוג זה';
-  const msg = `מצטערים, אין באפשרותנו לקבל ${typeName}. אנא שלח הודעת טקסט.`;
+  const msg = 'לא ניתן לצרף תמונות בשלב זה. אשמח להמשיך לסייע בהודעות כתובות.';
   try {
     await sendMessage(meta, from, msg);
   } catch (err) {
