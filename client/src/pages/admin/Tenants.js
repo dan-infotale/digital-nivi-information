@@ -9,7 +9,8 @@ export default function Tenants() {
   const [tenants, setTenants] = useState([]);
   const [modal, setModal] = useState(null); // null | 'tenant' | 'users'
   const [selected, setSelected] = useState(null);
-  const [form, setForm] = useState({ name: '', slug: '' });
+  const EMPTY_OIDC = { enabled: false, discoveryUrl: '', clientId: '', clientSecret: '', label: 'SSO' };
+  const [form, setForm] = useState({ name: '', slug: '', oidc: EMPTY_OIDC });
   const [users, setUsers] = useState([]);
   const [userForm, setUserForm] = useState({ name: '', email: '', password: '' });
   const [error, setError] = useState('');
@@ -71,14 +72,14 @@ export default function Tenants() {
 
   function openNew() {
     setSelected(null);
-    setForm({ name: '', slug: '' });
+    setForm({ name: '', slug: '', oidc: EMPTY_OIDC });
     setError('');
     setModal('tenant');
   }
 
   function openEdit(tenant) {
     setSelected(tenant);
-    setForm({ name: tenant.name, slug: tenant.slug });
+    setForm({ name: tenant.name, slug: tenant.slug, oidc: tenant.oidc || EMPTY_OIDC });
     setError('');
     setModal('tenant');
   }
@@ -117,6 +118,34 @@ export default function Tenants() {
           <form onSubmit={saveTenant} className="form-grid">
             <label>{t('name')}<input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required /></label>
             <label>{t('slug')}<input value={form.slug} onChange={e => setForm(f => ({ ...f, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') }))} required /></label>
+
+            <fieldset style={{ marginTop: 8 }}>
+              <legend style={{ fontWeight: 600, fontSize: 13 }}>OpenID Connect (SSO)</legend>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
+                <label className="checkbox-label">
+                  <input type="checkbox" checked={!!form.oidc?.enabled} onChange={e => setForm(f => ({ ...f, oidc: { ...f.oidc, enabled: e.target.checked } }))} />
+                  Enable OIDC login
+                </label>
+                {form.oidc?.enabled && (<>
+                  <label>Button label
+                    <input value={form.oidc.label} placeholder="SSO" onChange={e => setForm(f => ({ ...f, oidc: { ...f.oidc, label: e.target.value } }))} />
+                  </label>
+                  <label>Discovery URL
+                    <input value={form.oidc.discoveryUrl} placeholder="https://provider/.well-known/openid-configuration" onChange={e => setForm(f => ({ ...f, oidc: { ...f.oidc, discoveryUrl: e.target.value } }))} required={form.oidc?.enabled} />
+                  </label>
+                  <label>Client ID
+                    <input value={form.oidc.clientId} onChange={e => setForm(f => ({ ...f, oidc: { ...f.oidc, clientId: e.target.value } }))} required={form.oidc?.enabled} />
+                  </label>
+                  <label>Client Secret
+                    <input type="password" value={form.oidc.clientSecret} placeholder={selected?.oidc?.clientSecret === '***' ? '(unchanged)' : ''} onChange={e => setForm(f => ({ ...f, oidc: { ...f.oidc, clientSecret: e.target.value } }))} />
+                  </label>
+                  <div style={{ fontSize: 11, color: 'var(--fg-4)' }}>
+                    Callback URL: <code>{window.location.origin}/api/auth/oidc/callback</code>
+                  </div>
+                </>)}
+              </div>
+            </fieldset>
+
             <div className="form-actions">
               <button type="button" className="btn-secondary" onClick={() => setModal(null)}>{t('cancel')}</button>
               <button type="submit" className="btn-primary">{t('save')}</button>

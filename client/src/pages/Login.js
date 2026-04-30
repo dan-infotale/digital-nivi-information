@@ -101,8 +101,22 @@ export default function Login() {
         <button className="btn-entra" onClick={() => window.location.href = `/api/auth/entra/login?type=user&tenantId=${selectedTenant._id}`}>
           <MicrosoftIcon /> {t('sign_in_microsoft')}
         </button>
+
+        {selectedTenant.oidc?.enabled && (
+          <button className="btn-entra" style={{ marginTop: 8 }} onClick={() => window.location.href = `/api/auth/oidc/login?tenantId=${selectedTenant._id}`}>
+            <OidcIcon /> {selectedTenant.oidc.label || 'SSO'}
+          </button>
+        )}
       </div>
     </div>
+  );
+}
+
+function OidcIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>
+    </svg>
   );
 }
 

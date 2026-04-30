@@ -3,6 +3,7 @@ const SystemAdmin = require('../models/SystemAdmin');
 const User = require('../models/User');
 const Tenant = require('../models/Tenant');
 const { signToken, hashPassword, comparePassword, getEntraAuthUrl, exchangeEntraCode } = require('../services/auth');
+const { getOidcClient, getRedirectUri } = require('../services/oidc');
 const { requireSystemAdmin, requireTenantUser } = require('../middleware/auth');
 
 const router = express.Router();
@@ -10,8 +11,13 @@ const router = express.Router();
 // ── Public tenant list ───────────────────────────────────────────────────────
 
 router.get('/tenants', async (req, res) => {
-  const tenants = await Tenant.find({}, '_id name slug').lean();
-  res.json(tenants);
+  const tenants = await Tenant.find({}, '_id name slug oidc').lean();
+  res.json(tenants.map(t => ({
+    _id: t._id,
+    name: t.name,
+    slug: t.slug,
+    oidc: t.oidc?.enabled ? { enabled: true, label: t.oidc.label || 'SSO' } : undefined,
+  })));
 });
 
 // ── System admin login ───────────────────────────────────────────────────────
@@ -96,6 +102,60 @@ router.get('/entra/callback', async (req, res) => {
     res.redirect(`${frontendUrl}/auth/callback?token=${token}&type=${type}`);
   } catch (err) {
     console.error('[Auth] Entra callback error:', err.message);
+    res.redirect(`${frontendUrl}/login?error=auth_failed`);
+  }
+});
+
+// ── Generic OIDC ─────────────────────────────────────────────────────────────
+
+router.get('/oidc/login', async (req, res) => {
+  const { tenantId } = req.query;
+  if (!tenantId) return res.status(400).json({ error: 'tenantId required' });
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  try {
+    const tenant = await Tenant.findById(tenantId);
+    if (!tenant?.oidc?.enabled) return res.status(400).json({ error: 'OIDC not enabled for this tenant' });
+    const client = await getOidcClient(tenant);
+    const state = Buffer.from(JSON.stringify({ tenantId })).toString('base64');
+    const url = client.authorizationUrl({ scope: 'openid email profile', redirect_uri: getRedirectUri(), state });
+    res.redirect(url);
+  } catch (err) {
+    console.error('[Auth] OIDC login error:', err.message);
+    res.redirect(`${frontendUrl}/login?error=${encodeURIComponent(err.message)}`);
+  }
+});
+
+router.get('/oidc/callback', async (req, res) => {
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  const { state, error: oidcError } = req.query;
+  if (oidcError) return res.redirect(`${frontendUrl}/login?error=${encodeURIComponent(oidcError)}`);
+  try {
+    const { tenantId } = JSON.parse(Buffer.from(state, 'base64').toString());
+    const tenant = await Tenant.findById(tenantId);
+    if (!tenant?.oidc?.enabled) return res.redirect(`${frontendUrl}/login?error=oidc_not_configured`);
+
+    const client = await getOidcClient(tenant);
+    const params = client.callbackParams(req);
+    const tokenSet = await client.callback(getRedirectUri(), params, { state });
+    const claims = tokenSet.claims();
+
+    const sub = claims.sub;
+    const email = (claims.email || '').toLowerCase().trim();
+    const name = claims.name || claims.preferred_username || '';
+
+    const orClauses = [];
+    if (sub) orClauses.push({ oidcSub: sub });
+    if (email) orClauses.push({ email });
+    if (!orClauses.length) return res.redirect(`${frontendUrl}/login?error=no_identity`);
+
+    const user = await User.findOne({ tenantId, $or: orClauses });
+    if (!user) return res.redirect(`${frontendUrl}/login?error=not_registered`);
+    if (!user.oidcSub && sub) { user.oidcSub = sub; await user.save(); }
+
+    const token = signToken({ type: 'tenant_user', userId: user._id, tenantId: user.tenantId, email: user.email, name: user.name || name });
+    res.redirect(`${frontendUrl}/auth/callback?token=${token}&type=user`);
+  } catch (err) {
+    console.error('[Auth] OIDC callback error:', err.message);
     res.redirect(`${frontendUrl}/login?error=auth_failed`);
   }
 });

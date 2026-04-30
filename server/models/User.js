@@ -5,6 +5,7 @@ const schema = new mongoose.Schema({
   name: { type: String, default: '' },
   hashedPassword: { type: String, default: null },
   entraOid: { type: String, sparse: true, default: null },
+  oidcSub: { type: String, sparse: true, default: null },
   createdAt: { type: Date, default: Date.now },
 });
 schema.index({ tenantId: 1, email: 1 }, { unique: true });

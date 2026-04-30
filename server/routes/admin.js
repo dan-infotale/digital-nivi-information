@@ -5,6 +5,7 @@ const Tenant = require('../models/Tenant');
 const User = require('../models/User');
 const { requireSystemAdmin } = require('../middleware/auth');
 const { hashPassword } = require('../services/auth');
+const { invalidateOidcCache } = require('../services/oidc');
 
 const router = express.Router();
 router.use(requireSystemAdmin);
@@ -48,9 +49,22 @@ router.delete('/admins/:id', async (req, res) => {
 
 // ── Tenants ───────────────────────────────────────────────────────────────────
 
+function scrubTenant(t) {
+  return {
+    ...t,
+    oidc: t.oidc ? {
+      enabled: t.oidc.enabled || false,
+      discoveryUrl: t.oidc.discoveryUrl || '',
+      clientId: t.oidc.clientId || '',
+      clientSecret: t.oidc.clientSecret ? '***' : '',
+      label: t.oidc.label || 'SSO',
+    } : undefined,
+  };
+}
+
 router.get('/tenants', async (req, res) => {
   const tenants = await Tenant.find().lean();
-  res.json(tenants);
+  res.json(tenants.map(scrubTenant));
 });
 
 router.post('/tenants', async (req, res) => {
@@ -66,14 +80,25 @@ router.post('/tenants', async (req, res) => {
 });
 
 router.put('/tenants/:id', async (req, res) => {
-  const { name, slug } = req.body;
+  const { name, slug, oidc } = req.body;
   const update = {};
   if (name !== undefined) update.name = name;
   if (slug !== undefined) update.slug = slug;
+  if (oidc !== undefined) {
+    const existing = await Tenant.findById(req.params.id).lean();
+    update.oidc = {
+      enabled: !!oidc.enabled,
+      discoveryUrl: oidc.discoveryUrl || '',
+      clientId: oidc.clientId || '',
+      clientSecret: oidc.clientSecret === '***' ? (existing?.oidc?.clientSecret || '') : (oidc.clientSecret || ''),
+      label: oidc.label || 'SSO',
+    };
+    invalidateOidcCache(req.params.id);
+  }
   try {
-    const tenant = await Tenant.findByIdAndUpdate(req.params.id, update, { new: true });
+    const tenant = await Tenant.findByIdAndUpdate(req.params.id, update, { new: true }).lean();
     if (!tenant) return res.status(404).json({ error: 'Not found' });
-    res.json(tenant);
+    res.json(scrubTenant(tenant));
   } catch (err) {
     if (err.code === 11000) return res.status(409).json({ error: 'Slug already exists' });
     throw err;
