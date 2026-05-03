@@ -208,15 +208,18 @@ async function handleMessage(connector, { from, text, messageId }) {
       reply = await adapter.sendMessage(conversation, text);
     }
 
-    if (isNew) {
-      reply += '\n\nלהתחלת שיחה חדשה אנא הקלד **שיחה חדשה**';
-    }
-
     conversation.messages.push({ direction: 'outgoing', body: reply });
     conversation.lastActivity = new Date();
     await conversation.save();
 
     await sendMessage(meta, from, reply);
+
+    if (isNew) {
+      const hint = 'להתחלת שיחה חדשה אנא הקלד *שיחה חדשה*';
+      conversation.messages.push({ direction: 'outgoing', body: hint });
+      await conversation.save();
+      await sendMessage(meta, from, hint);
+    }
   } catch (err) {
     console.error(`[Webhook] Bot error for ${from}:`, err.message);
     let msg = 'מצטערים, אירעה שגיאה. אנא נסה שוב מאוחר יותר.';
