@@ -17,6 +17,10 @@ export default function MetaConnections() {
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(null);
   const [testResults, setTestResults] = useState({});
+  const [sendTestModal, setSendTestModal] = useState(null); // connection id or null
+  const [sendTestForm, setSendTestForm] = useState({ to: '', text: 'הודעת בדיקה מהמערכת 🔍' });
+  const [sendTestResult, setSendTestResult] = useState(null);
+  const [sendTestLoading, setSendTestLoading] = useState(false);
 
   const webhookBase = window.location.origin;
 
@@ -40,6 +44,26 @@ export default function MetaConnections() {
       setTestResults(r => ({ ...r, [id]: data }));
     } catch {
       setTestResults(r => ({ ...r, [id]: { ok: false, error: 'Request failed' } }));
+    }
+  }
+
+  function openSendTest(id) {
+    setSendTestModal(id);
+    setSendTestForm({ to: '', text: 'הודעת בדיקה מהמערכת 🔍' });
+    setSendTestResult(null);
+  }
+
+  async function doSendTest(e) {
+    e.preventDefault();
+    setSendTestLoading(true);
+    setSendTestResult(null);
+    try {
+      const { data } = await api.post(`/meta-connections/${sendTestModal}/send-test`, sendTestForm);
+      setSendTestResult(data);
+    } catch {
+      setSendTestResult({ ok: false, error: 'Request failed' });
+    } finally {
+      setSendTestLoading(false);
     }
   }
 
@@ -102,6 +126,7 @@ export default function MetaConnections() {
                       {testResults[item._id].ok ? `✓ ${testResults[item._id].name || ''}` : `✗ ${testResults[item._id].error}`}
                     </span>
                   )}
+                  <button className="btn-ghost" onClick={() => openSendTest(item._id)}>שלח בדיקה</button>
                   <button className="btn-ghost" onClick={() => openEdit(item)}>{t('edit')}</button>
                   <button className="btn-danger" onClick={() => remove(item._id)}>{t('delete')}</button>
                 </div>
@@ -129,6 +154,41 @@ export default function MetaConnections() {
           );
         })}
       </div>
+
+      {sendTestModal && (
+        <Modal title="שלח הודעת בדיקה" onClose={() => setSendTestModal(null)}>
+          <form onSubmit={doSendTest} className="form-grid">
+            <label>מספר טלפון (עם קידומת מדינה)
+              <input
+                placeholder="972501234567"
+                value={sendTestForm.to}
+                onChange={e => setSendTestForm(f => ({ ...f, to: e.target.value }))}
+                required
+              />
+            </label>
+            <label>הודעה
+              <textarea
+                rows={5}
+                value={sendTestForm.text}
+                onChange={e => setSendTestForm(f => ({ ...f, text: e.target.value }))}
+                required
+                style={{ resize: 'vertical' }}
+              />
+            </label>
+            {sendTestResult && (
+              <div className={sendTestResult.ok ? 'success-banner' : 'error-banner'}>
+                {sendTestResult.ok ? '✓ ההודעה נשלחה בהצלחה' : `✗ ${sendTestResult.error}`}
+              </div>
+            )}
+            <div className="form-actions">
+              <button type="button" className="btn-secondary" onClick={() => setSendTestModal(null)}>{t('cancel')}</button>
+              <button type="submit" className="btn-primary" disabled={sendTestLoading}>
+                {sendTestLoading ? '...' : 'שלח'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
 
       {modal && (
         <Modal title={selected ? t('edit_connection') : t('new_meta')} onClose={() => setModal(false)}>

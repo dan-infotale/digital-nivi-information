@@ -2,6 +2,7 @@ const express = require('express');
 const axios = require('axios');
 const MetaConnection = require('../models/MetaConnection');
 const { requireTenantUser } = require('../middleware/auth');
+const { sendMessage } = require('../services/whatsapp');
 
 const router = express.Router();
 router.use(requireTenantUser);
@@ -58,6 +59,20 @@ router.post('/:id/test', async (req, res) => {
     const status = err.response?.status;
     const message = err.response?.data?.error?.message || err.message;
     res.json({ ok: false, error: `${status ? `${status}: ` : ''}${message}` });
+  }
+});
+
+router.post('/:id/send-test', async (req, res) => {
+  const { to, text } = req.body;
+  if (!to || !text) return res.status(400).json({ ok: false, error: 'to and text are required' });
+  const item = await MetaConnection.findOne({ _id: req.params.id, tenantId: req.user.tenantId });
+  if (!item) return res.status(404).json({ ok: false, error: 'Not found' });
+  try {
+    await sendMessage(item, to, text);
+    res.json({ ok: true });
+  } catch (err) {
+    const message = err.response?.data?.error?.message || err.message;
+    res.json({ ok: false, error: message });
   }
 });
 
