@@ -55,7 +55,7 @@ async function sendMessage(metaConnection, to, text) {
   for (const chunk of chunks) {
     await axios.post(
       metaConnection.apiUrl,
-      { messaging_product: 'whatsapp', to, type: 'text', text: { body: chunk } },
+      { messaging_product: 'whatsapp', to, type: 'text', text: { body: chunk, preview_url: true } },
       {
         headers: {
           Authorization: `Bearer ${metaConnection.token}`,
