@@ -215,7 +215,7 @@ async function handleMessage(connector, { from, text, messageId }) {
     await sendMessage(meta, from, reply);
 
     if (isNew) {
-      const hint = 'להתחלת שיחה חדשה אנא הקלד *שיחה חדשה*';
+      const hint = 'להתחלת שיחה חדשה אנא הקלד **שיחה חדשה**';
       conversation.messages.push({ direction: 'outgoing', body: hint });
       await conversation.save();
       await sendMessage(meta, from, hint);
