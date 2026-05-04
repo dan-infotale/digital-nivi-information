@@ -31,6 +31,7 @@ export default function Conversations() {
   const [conversations, setConversations] = useState([]);
   const [connectors, setConnectors] = useState([]);
   const [filterConnector, setFilterConnector] = useState('');
+  const [searchPhone, setSearchPhone] = useState('');
   const [selected, setSelected] = useState(null);
   const [stats, setStats] = useState({ totalConversations: 0, todayConversations: 0, incomingMessages: 0, outgoingMessages: 0, avgDurationMinutes: 0 });
   const lastMsgRef = useRef(null);
@@ -92,9 +93,17 @@ export default function Conversations() {
               {connectors.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
             </select>
           </div>
+          <div style={{ padding: '0 12px 8px' }}>
+            <input
+              placeholder="חיפוש לפי טלפון..."
+              value={searchPhone}
+              onChange={e => setSearchPhone(e.target.value)}
+              style={{ width: '100%' }}
+            />
+          </div>
           <div className="conv-list-items">
-            {conversations.length === 0 && <div className="empty">{t('no_conversations')}</div>}
-            {conversations.map(c => (
+            {conversations.filter(c => !searchPhone || c.phoneNumber.includes(searchPhone)).length === 0 && <div className="empty">{t('no_conversations')}</div>}
+            {conversations.filter(c => !searchPhone || c.phoneNumber.includes(searchPhone)).map(c => (
               <div key={c._id} className={`conv-row ${selected?._id === c._id ? 'active' : ''}`} onClick={() => openConversation(c._id)}>
                 <div className="conv-avatar">{getInitials(c.phoneNumber)}</div>
                 <div className="conv-row-info">
