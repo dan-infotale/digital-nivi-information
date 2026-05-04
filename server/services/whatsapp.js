@@ -44,33 +44,45 @@ function cleanForWhatsApp(text) {
   text = text.replace(/\n{3,}/g, '\n\n');
   text = text.trim();
 
-  // Ensure the WhatsApp "read more" cut lands after the first paragraph.
-  // If no paragraph break exists, inject \n\n after the first sentence.
-  if (text.length > 300) {
-    const firstBreak = text.indexOf('\n\n');
-    if (firstBreak === -1) {
-      let cutAt = -1;
-      for (let i = 0; i < text.length - 1; i++) {
-        const ch = text[i];
-        const next = text[i + 1];
-        if ((ch === '.' || ch === '?' || ch === '!') && (next === ' ' || next === '\n')) {
-          cutAt = i + 1; break;
-        }
-      }
-      if (cutAt !== -1) {
-        text = text.slice(0, cutAt).trimEnd() + '\n\n' + text.slice(cutAt).trimStart();
-      }
+  return text;
+}
+
+// Split text into [summary, rest] at the first paragraph break (\n\n).
+// If no paragraph break exists, split after the first sentence.
+// Returns an array of 1 or 2 strings.
+function splitAtFirstParagraph(text) {
+  const breakIdx = text.indexOf('\n\n');
+  if (breakIdx !== -1) {
+    const part1 = text.slice(0, breakIdx).trim();
+    const part2 = text.slice(breakIdx + 2).trim();
+    if (part1 && part2) return [part1, part2];
+    return [text];
+  }
+  // No paragraph break — split after first sentence
+  for (let i = 0; i < text.length - 1; i++) {
+    const ch = text[i];
+    const next = text[i + 1];
+    if ((ch === '.' || ch === '?' || ch === '!') && (next === ' ' || next === '\n')) {
+      const part1 = text.slice(0, i + 1).trim();
+      const part2 = text.slice(i + 1).trim();
+      if (part1 && part2) return [part1, part2];
+      break;
     }
   }
-
-  return text;
+  return [text];
 }
 
 async function sendMessage(metaConnection, to, text) {
   text = cleanForWhatsApp(text);
+
+  // Split into summary + details so the summary is always fully visible
+  const parts = splitAtFirstParagraph(text);
+
   const chunks = [];
-  for (let i = 0; i < text.length; i += MAX_LENGTH) {
-    chunks.push(text.substring(i, i + MAX_LENGTH));
+  for (const part of parts) {
+    for (let i = 0; i < part.length; i += MAX_LENGTH) {
+      chunks.push(part.substring(i, i + MAX_LENGTH));
+    }
   }
 
   for (const chunk of chunks) {
