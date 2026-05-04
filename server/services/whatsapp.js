@@ -44,23 +44,22 @@ function cleanForWhatsApp(text) {
   text = text.replace(/\n{3,}/g, '\n\n');
   text = text.trim();
 
-  // Ensure the WhatsApp "read more" cut lands after the 3rd sentence.
-  // Only applied when the message is long enough to be cut by WhatsApp.
-  // Scans for sentence endings (. ? !) and injects \n\n after the 3rd one
-  // if there isn't already a paragraph break in that area.
+  // Ensure the WhatsApp "read more" cut lands after the first paragraph.
+  // If no paragraph break exists, inject \n\n after the first sentence.
   if (text.length > 300) {
-    let sentenceCount = 0;
-    let cutAt = -1;
-    for (let i = 0; i < text.length - 1; i++) {
-      const ch = text[i];
-      const next = text[i + 1];
-      if ((ch === '.' || ch === '?' || ch === '!') && (next === ' ' || next === '\n')) {
-        sentenceCount++;
-        if (sentenceCount === 3) { cutAt = i + 1; break; }
+    const firstBreak = text.indexOf('\n\n');
+    if (firstBreak === -1) {
+      let cutAt = -1;
+      for (let i = 0; i < text.length - 1; i++) {
+        const ch = text[i];
+        const next = text[i + 1];
+        if ((ch === '.' || ch === '?' || ch === '!') && (next === ' ' || next === '\n')) {
+          cutAt = i + 1; break;
+        }
       }
-    }
-    if (cutAt !== -1 && !text.slice(Math.max(0, cutAt - 3), cutAt + 3).includes('\n\n')) {
-      text = text.slice(0, cutAt).trimEnd() + '\n\n' + text.slice(cutAt).trimStart();
+      if (cutAt !== -1) {
+        text = text.slice(0, cutAt).trimEnd() + '\n\n' + text.slice(cutAt).trimStart();
+      }
     }
   }
 
