@@ -29,8 +29,9 @@ function WhatsAppEditor({ label, value, onChange, placeholder, rows = 3 }) {
   }
 
   function insertLink() {
-    const url = prompt('הכנס URL:');
+    let url = prompt('הכנס URL:');
     if (!url) return;
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
     const el = ref.current;
     const start = el.selectionStart;
     const end = el.selectionEnd;

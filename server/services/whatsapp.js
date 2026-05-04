@@ -25,8 +25,8 @@ function cleanForWhatsApp(text) {
   // Strikethrough: ~~text~~ → ~text~
   text = text.replace(/~~(.+?)~~/g, '~$1~');
 
-  // Links: [text](url) → text\nurl
-  text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '$1\n$2');
+  // Links: [text](url) → text\nurl  (match any non-whitespace URL)
+  text = text.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '$1\n$2');
 
   // Horizontal rules → remove
   text = text.replace(/^[-*_]{3,}$/gm, '');
