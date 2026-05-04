@@ -17,6 +17,7 @@ class OpenAIAdapter {
 
   async sendMessage(conversation, text, knowledgeBaseId = null) {
     let systemPrompt = this.config.systemPrompt || 'You are a helpful assistant.';
+    systemPrompt += '\n\nFormatting: Always begin your response with a 1-2 sentence summary as a standalone paragraph, then elaborate with details.';
 
     if (knowledgeBaseId) {
       try {
