@@ -213,23 +213,6 @@ async function handleMessage(connector, { from, text, messageId }) {
     await conversation.save();
 
     await sendMessage(meta, from, reply);
-
-    if (isNew) {
-      const convId = conversation._id;
-      setTimeout(async () => {
-        try {
-          const conv = await Conversation.findById(convId);
-          if (!conv || conv.status !== 'active') return;
-          const hint = 'להתחלת שיחה חדשה אנא הקלד **שיחה חדשה**';
-          conv.messages.push({ direction: 'outgoing', body: hint });
-          conv.lastActivity = new Date();
-          await conv.save();
-          await sendMessage(meta, from, hint);
-        } catch (err) {
-          console.error(`[Webhook] Failed to send delayed hint to ${from}:`, err.message);
-        }
-      }, 10 * 60 * 1000);
-    }
   } catch (err) {
     console.error(`[Webhook] Bot error for ${from}:`, err.message);
     let msg = 'מצטערים, אירעה שגיאה. אנא נסה שוב מאוחר יותר.';
