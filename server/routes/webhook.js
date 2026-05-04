@@ -100,7 +100,8 @@ const UNSUPPORTED_TYPE_LABELS = {
 async function handleUnsupportedMessage(connector, { from, type }) {
   const meta = connector.metaConnectionId;
   const label = UNSUPPORTED_TYPE_LABELS[type] || 'תוכן זה';
-  const msg = `לא ניתן לצרף ${label} בשלב זה. אשמח להמשיך לסייע בהודעות כתובות.`;
+  const msg = connector.unsupportedMessage ||
+    `לא ניתן לצרף ${label} בשלב זה. אשמח להמשיך לסייע בהודעות כתובות.`;
   try {
     await sendMessage(meta, from, msg);
   } catch (err) {
@@ -175,6 +176,12 @@ async function handleMessage(connector, { from, text, messageId }) {
         return;
       }
     }
+    if (connector.welcomeMessage) {
+      newConv.messages.push({ direction: 'outgoing', body: connector.welcomeMessage });
+      newConv.lastActivity = new Date();
+      await newConv.save();
+      await sendMessage(meta, from, connector.welcomeMessage);
+    }
     const confirmMsg = 'בוודאי! מתחילים שיחה חדשה. כיצד אוכל לעזור?';
     newConv.messages.push({ direction: 'outgoing', body: confirmMsg });
     newConv.lastActivity = new Date();
@@ -186,6 +193,12 @@ async function handleMessage(connector, { from, text, messageId }) {
   conversation.messages.push({ direction: 'incoming', body: text, whatsappMessageId: messageId });
   conversation.lastActivity = new Date();
   await conversation.save();
+
+  if (isNew && connector.welcomeMessage) {
+    conversation.messages.push({ direction: 'outgoing', body: connector.welcomeMessage });
+    await conversation.save();
+    await sendMessage(meta, from, connector.welcomeMessage);
+  }
 
   const adapter = await createAdapter(bot);
 

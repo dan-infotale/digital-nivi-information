@@ -1,9 +1,80 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { TenantLayout } from '../../components/Layout';
 import Modal from '../../components/Modal';
 import Icon from '../../components/Icons';
 import api from '../../api';
 import { useLanguage } from '../../context/LanguageContext';
+
+const EMPTY_FORM = {
+  name: '', metaConnectionId: '', botBackendId: '', active: true,
+  welcomeMessage: '', unsupportedMessage: '',
+  autoCloseMinutes: 15, autoCloseMessage: '',
+  retention: { enabled: false, days: 90, deleteMode: 'full' },
+};
+
+function WhatsAppEditor({ label, value, onChange, placeholder, rows = 3 }) {
+  const ref = useRef(null);
+
+  function wrap(before, after) {
+    const el = ref.current;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const selected = value.slice(start, end);
+    const next = value.slice(0, start) + before + selected + after + value.slice(end);
+    onChange(next);
+    setTimeout(() => {
+      el.focus();
+      el.setSelectionRange(start + before.length, end + before.length);
+    }, 0);
+  }
+
+  function insertLink() {
+    const url = prompt('הכנס URL:');
+    if (!url) return;
+    const el = ref.current;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const text = value.slice(start, end) || 'טקסט';
+    const next = value.slice(0, start) + `[${text}](${url})` + value.slice(end);
+    onChange(next);
+  }
+
+  return (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <span>{label}</span>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 2 }}>
+        {[
+          { title: 'Bold', display: <b>B</b>, action: () => wrap('**', '**') },
+          { title: 'Italic', display: <i>I</i>, action: () => wrap('*', '*') },
+          { title: 'Strikethrough', display: <s>S</s>, action: () => wrap('~~', '~~') },
+          { title: 'Link', display: '🔗', action: insertLink },
+        ].map(btn => (
+          <button
+            key={btn.title}
+            type="button"
+            title={btn.title}
+            onClick={btn.action}
+            style={{
+              padding: '2px 8px', fontSize: 13, cursor: 'pointer',
+              background: 'var(--bg-2)', border: '1px solid var(--border)',
+              borderRadius: 4, color: 'var(--fg-1)',
+            }}
+          >
+            {btn.display}
+          </button>
+        ))}
+      </div>
+      <textarea
+        ref={ref}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        rows={rows}
+        style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: 13 }}
+      />
+    </label>
+  );
+}
 
 export default function Connectors() {
   const { t } = useLanguage();
@@ -12,7 +83,7 @@ export default function Connectors() {
   const [bots, setBots] = useState([]);
   const [modal, setModal] = useState(false);
   const [selected, setSelected] = useState(null);
-  const [form, setForm] = useState({ name: '', metaConnectionId: '', botBackendId: '', active: true });
+  const [form, setForm] = useState(EMPTY_FORM);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(null);
   const [testResults, setTestResults] = useState({});
@@ -34,7 +105,7 @@ export default function Connectors() {
 
   function openNew() {
     setSelected(null);
-    setForm({ name: '', metaConnectionId: connections[0]?._id || '', botBackendId: bots[0]?._id || '', active: true });
+    setForm({ ...EMPTY_FORM, metaConnectionId: connections[0]?._id || '', botBackendId: bots[0]?._id || '' });
     setError('');
     setModal(true);
   }
@@ -46,6 +117,11 @@ export default function Connectors() {
       metaConnectionId: item.metaConnectionId?._id || item.metaConnectionId,
       botBackendId: item.botBackendId?._id || item.botBackendId,
       active: item.active,
+      welcomeMessage: item.welcomeMessage || '',
+      unsupportedMessage: item.unsupportedMessage || '',
+      autoCloseMinutes: item.autoCloseMinutes ?? 15,
+      autoCloseMessage: item.autoCloseMessage || '',
+      retention: item.retention || { enabled: false, days: 90, deleteMode: 'full' },
     });
     setError('');
     setModal(true);
@@ -103,6 +179,8 @@ export default function Connectors() {
     setCopied(id);
     setTimeout(() => setCopied(null), 2000);
   }
+
+  const setRetention = (patch) => setForm(f => ({ ...f, retention: { ...f.retention, ...patch } }));
 
   return (
     <TenantLayout title={t('connectors')}>
@@ -235,6 +313,77 @@ export default function Connectors() {
               <input type="checkbox" checked={form.active} onChange={e => setForm(f => ({ ...f, active: e.target.checked }))} />
               {t('active')}
             </label>
+
+            <fieldset style={{ marginTop: 8 }}>
+              <legend style={{ fontWeight: 600, fontSize: 13 }}>הודעות אוטומטיות</legend>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 10 }}>
+                <WhatsAppEditor
+                  label="הודעת פתיחה"
+                  value={form.welcomeMessage}
+                  onChange={v => setForm(f => ({ ...f, welcomeMessage: v }))}
+                  placeholder="תוכן ישלח אוטומטית בתחילת כל שיחה חדשה..."
+                />
+                <WhatsAppEditor
+                  label="הודעה לתוכן לא נתמך (תמונות, קבצים וכו')"
+                  value={form.unsupportedMessage}
+                  onChange={v => setForm(f => ({ ...f, unsupportedMessage: v }))}
+                  placeholder="לא ניתן לצרף תוכן זה בשלב זה. אשמח להמשיך לסייע בהודעות כתובות."
+                />
+              </div>
+            </fieldset>
+
+            <fieldset style={{ marginTop: 8 }}>
+              <legend style={{ fontWeight: 600, fontSize: 13 }}>סגירה אוטומטית</legend>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 10 }}>
+                <label>סגור שיחה לאחר
+                  <input
+                    type="number"
+                    min="1"
+                    style={{ width: 70, marginInline: 6 }}
+                    value={form.autoCloseMinutes}
+                    onChange={e => setForm(f => ({ ...f, autoCloseMinutes: parseInt(e.target.value) || 15 }))}
+                  />
+                  דקות ללא פעילות
+                </label>
+                <WhatsAppEditor
+                  label="הודעת סגירה אוטומטית"
+                  value={form.autoCloseMessage}
+                  onChange={v => setForm(f => ({ ...f, autoCloseMessage: v }))}
+                  placeholder="תודה על פנייתך, הפניה נסגרה, נשמח לעמוד לשירותך בכל זמן"
+                />
+              </div>
+            </fieldset>
+
+            <fieldset style={{ marginTop: 8 }}>
+              <legend style={{ fontWeight: 600, fontSize: 13 }}>מדיניות שמירת שיחות</legend>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
+                <label className="checkbox-label">
+                  <input type="checkbox" checked={!!form.retention?.enabled} onChange={e => setRetention({ enabled: e.target.checked })} />
+                  מחק שיחות ישנות אוטומטית
+                </label>
+                {form.retention?.enabled && (
+                  <>
+                    <label>מחק לאחר
+                      <input
+                        type="number"
+                        min="1"
+                        style={{ width: 70, marginInline: 6 }}
+                        value={form.retention.days}
+                        onChange={e => setRetention({ days: parseInt(e.target.value) || 90 })}
+                      />
+                      ימים
+                    </label>
+                    <label>מה למחוק
+                      <select value={form.retention.deleteMode} onChange={e => setRetention({ deleteMode: e.target.value })}>
+                        <option value="full">כל השיחה (כולל מטאדאטה)</option>
+                        <option value="messages">הודעות בלבד (שמור מטאדאטה)</option>
+                      </select>
+                    </label>
+                  </>
+                )}
+              </div>
+            </fieldset>
+
             <div className="form-actions">
               <button type="button" className="btn-secondary" onClick={() => setModal(false)}>{t('cancel')}</button>
               <button type="submit" className="btn-primary">{t('save')}</button>
