@@ -109,6 +109,22 @@ async function handleUnsupportedMessage(connector, { from, type }) {
   }
 }
 
+const GREETING_PATTERNS = [
+  /^שלום[!,.\s]/i,
+  /^היי[!,.\s]/i,
+  /^הי[!,.\s]/i,
+  /אני ניבי/,
+  /עוזרת הווירטואלית/,
+  /במה אוכל לעזור/,
+  /שמח(?:ה)? לעזור/,
+  /^ברוך הבא/i,
+  /^ברוכים הבאים/i,
+];
+
+function isGreetingReply(text) {
+  return GREETING_PATTERNS.some(p => p.test(text));
+}
+
 const NEW_SESSION_TRIGGERS = ['שיחה חדשה', 'התחל שיחה חדשה', 'new conversation', 'restart'];
 
 function isNewSessionRequest(text) {
@@ -219,6 +235,12 @@ async function handleMessage(connector, { from, text, messageId }) {
       reply = await adapter.sendMessage(conversation, text, bot.knowledgeBaseId);
     } else {
       reply = await adapter.sendMessage(conversation, text);
+    }
+
+    // Suppress bot greeting on first message if connector already sent a welcome message
+    if (isNew && connector.welcomeMessage && isGreetingReply(reply)) {
+      console.log(`[Webhook] Suppressed bot greeting for ${from} (connector has welcomeMessage)`);
+      return;
     }
 
     conversation.messages.push({ direction: 'outgoing', body: reply });
