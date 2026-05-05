@@ -9,6 +9,8 @@ const schema = new mongoose.Schema({
   unsupportedMessage: { type: String, default: '' },
   autoCloseMinutes:   { type: Number, default: 15 },
   autoCloseMessage:   { type: String, default: '' },
+  suppressBotGreeting:          { type: Boolean, default: false },
+  greetingClassifierProvider:   { type: String, default: '' },
   retention: {
     enabled:    { type: Boolean, default: false },
     days:       { type: Number, default: 90 },

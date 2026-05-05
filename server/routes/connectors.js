@@ -16,7 +16,7 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { name, metaConnectionId, botBackendId, active, welcomeMessage, unsupportedMessage, autoCloseMinutes, autoCloseMessage, retention } = req.body;
+  const { name, metaConnectionId, botBackendId, active, welcomeMessage, unsupportedMessage, autoCloseMinutes, autoCloseMessage, retention, suppressBotGreeting, greetingClassifierProvider } = req.body;
   if (!name || !metaConnectionId || !botBackendId) return res.status(400).json({ error: 'name, metaConnectionId and botBackendId required' });
   const tenantId = req.user.tenantId;
   const [meta, bot] = await Promise.all([
@@ -25,12 +25,12 @@ router.post('/', async (req, res) => {
   ]);
   if (!meta) return res.status(400).json({ error: 'Invalid META connection' });
   if (!bot) return res.status(400).json({ error: 'Invalid bot backend' });
-  const item = await Connector.create({ tenantId, name, metaConnectionId, botBackendId, active: active !== false, welcomeMessage, unsupportedMessage, autoCloseMinutes, autoCloseMessage, retention });
+  const item = await Connector.create({ tenantId, name, metaConnectionId, botBackendId, active: active !== false, welcomeMessage, unsupportedMessage, autoCloseMinutes, autoCloseMessage, retention, suppressBotGreeting, greetingClassifierProvider });
   res.status(201).json(item);
 });
 
 router.put('/:id', async (req, res) => {
-  const { name, metaConnectionId, botBackendId, active, welcomeMessage, unsupportedMessage, autoCloseMinutes, autoCloseMessage, retention } = req.body;
+  const { name, metaConnectionId, botBackendId, active, welcomeMessage, unsupportedMessage, autoCloseMinutes, autoCloseMessage, retention, suppressBotGreeting, greetingClassifierProvider } = req.body;
   const tenantId = req.user.tenantId;
   if (metaConnectionId !== undefined) {
     const meta = await MetaConnection.findOne({ _id: metaConnectionId, tenantId });
@@ -50,6 +50,8 @@ router.put('/:id', async (req, res) => {
   if (autoCloseMinutes !== undefined) update.autoCloseMinutes = autoCloseMinutes;
   if (autoCloseMessage !== undefined) update.autoCloseMessage = autoCloseMessage;
   if (retention !== undefined) update.retention = retention;
+  if (suppressBotGreeting !== undefined) update.suppressBotGreeting = suppressBotGreeting;
+  if (greetingClassifierProvider !== undefined) update.greetingClassifierProvider = greetingClassifierProvider;
   const item = await Connector.findOneAndUpdate(
     { _id: req.params.id, tenantId: req.user.tenantId },
     update,

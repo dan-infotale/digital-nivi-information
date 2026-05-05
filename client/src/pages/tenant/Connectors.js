@@ -9,6 +9,7 @@ const EMPTY_FORM = {
   name: '', metaConnectionId: '', botBackendId: '', active: true,
   welcomeMessage: '', unsupportedMessage: '',
   autoCloseMinutes: 15, autoCloseMessage: '',
+  suppressBotGreeting: false, greetingClassifierProvider: '',
   retention: { enabled: false, days: 90, deleteMode: 'full' },
 };
 
@@ -82,6 +83,7 @@ export default function Connectors() {
   const [items, setItems] = useState([]);
   const [connections, setConnections] = useState([]);
   const [bots, setBots] = useState([]);
+  const [llmProviders, setLlmProviders] = useState([]);
   const [modal, setModal] = useState(false);
   const [selected, setSelected] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -92,14 +94,16 @@ export default function Connectors() {
   const webhookBase = window.location.origin;
 
   const load = useCallback(async () => {
-    const [c, m, b] = await Promise.all([
+    const [c, m, b, p] = await Promise.all([
       api.get('/connectors'),
       api.get('/meta-connections'),
       api.get('/bot-backends'),
+      api.get('/providers').catch(() => ({ data: [] })),
     ]);
     setItems(c.data);
     setConnections(m.data);
     setBots(b.data);
+    setLlmProviders(p.data || []);
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -122,6 +126,8 @@ export default function Connectors() {
       unsupportedMessage: item.unsupportedMessage || '',
       autoCloseMinutes: item.autoCloseMinutes ?? 15,
       autoCloseMessage: item.autoCloseMessage || '',
+      suppressBotGreeting: !!item.suppressBotGreeting,
+      greetingClassifierProvider: item.greetingClassifierProvider || '',
       retention: item.retention || { enabled: false, days: 90, deleteMode: 'full' },
     });
     setError('');
@@ -324,6 +330,27 @@ export default function Connectors() {
                   onChange={v => setForm(f => ({ ...f, welcomeMessage: v }))}
                   placeholder="תוכן ישלח אוטומטית בתחילת כל שיחה חדשה..."
                 />
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={!!form.suppressBotGreeting}
+                    onChange={e => setForm(f => ({ ...f, suppressBotGreeting: e.target.checked }))}
+                  />
+                  דכא הודעת ברכה חוזרת מהבוט
+                </label>
+                {form.suppressBotGreeting && (
+                  <label>ספק LLM לסיווג
+                    <select
+                      value={form.greetingClassifierProvider}
+                      onChange={e => setForm(f => ({ ...f, greetingClassifierProvider: e.target.value }))}
+                    >
+                      <option value="">ברירת מחדל (ראשון ברשימה)</option>
+                      {llmProviders.map(p => (
+                        <option key={p._id || p.name} value={p.name}>{p.name} ({p.model})</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
                 <WhatsAppEditor
                   label="הודעה לתוכן לא נתמך (תמונות, קבצים וכו')"
                   value={form.unsupportedMessage}

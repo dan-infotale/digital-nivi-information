@@ -111,10 +111,12 @@ async function handleUnsupportedMessage(connector, { from, type }) {
   }
 }
 
-async function isGreetingReply(userMessage, botReply) {
+async function isGreetingReply(userMessage, botReply, providerName) {
   try {
     const settings = await SystemSettings.findOne().lean();
-    const provider = settings?.llmProviders?.[0];
+    const provider = providerName
+      ? settings?.llmProviders?.find(p => p.name === providerName)
+      : settings?.llmProviders?.[0];
     if (!provider?.baseUrl && !provider?.apiKey) return false;
 
     const client = new OpenAI({
@@ -260,9 +262,10 @@ async function handleMessage(connector, { from, text, messageId }) {
       reply = await adapter.sendMessage(conversation, text);
     }
 
-    // Suppress bot greeting on first message if connector already sent a welcome message
-    if (isNew && connector.welcomeMessage && await isGreetingReply(text, reply)) {
-      console.log(`[Webhook] Suppressed bot greeting for ${from} (connector has welcomeMessage)`);
+    // Suppress bot greeting on first message if enabled and connector already sent a welcome message
+    if (isNew && connector.suppressBotGreeting && connector.welcomeMessage &&
+        await isGreetingReply(text, reply, connector.greetingClassifierProvider)) {
+      console.log(`[Webhook] Suppressed bot greeting for ${from} (suppressBotGreeting enabled)`);
       return;
     }
 
