@@ -130,20 +130,25 @@ async function isGreetingReply(userMessage, botReply, providerName) {
         {
           role: 'system',
           content:
-            'You are a classifier. Given a user message and a bot reply, determine if the bot reply is PURELY a generic greeting or introduction (e.g. "Hello, I am X, how can I help you?") with no substantive answer to the user\'s question. ' +
-            'Reply with exactly one word: "greeting" if it contains no real answer, or "answer" if it provides any actual relevant information.',
+            'You are a binary classifier for chatbot messages. ' +
+            'Your task: decide if the bot reply is a PURE greeting/introduction with NO substantive content — ' +
+            'meaning it only introduces the bot and asks how to help, without answering the user\'s question at all. ' +
+            'Examples of pure greetings: "שלום! אני ניבי, העוזרת הווירטואלית של Gov.il. במה אוכל לעזור לך היום?", "Hello! I\'m the virtual assistant, how can I help?" ' +
+            'Examples of NON-greetings (even if they start with שלום): any reply that actually answers or addresses the user\'s question. ' +
+            'Respond with ONLY the word "greeting" or "answer". No punctuation, no explanation.',
         },
         {
           role: 'user',
-          content: `User message: ${userMessage}\n\nBot reply: ${botReply}`,
+          content: `User message:\n${userMessage}\n\nBot reply:\n${botReply}`,
         },
       ],
       temperature: 0,
-      max_tokens: 5,
+      max_tokens: 10,
     });
 
-    const verdict = result.choices[0]?.message?.content?.trim().toLowerCase();
-    return verdict === 'greeting';
+    const raw = result.choices[0]?.message?.content?.trim().toLowerCase() || '';
+    console.log(`[GreetingClassifier] verdict="${raw}" for reply: ${botReply.slice(0, 80)}`);
+    return raw.startsWith('greeting');
   } catch (err) {
     console.warn('[Webhook] Greeting classifier failed, allowing reply through:', err.message);
     return false;
