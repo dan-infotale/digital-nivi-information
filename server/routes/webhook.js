@@ -111,7 +111,22 @@ async function handleUnsupportedMessage(connector, { from, type }) {
   }
 }
 
+// Fast heuristic: catches bot self-introduction greetings without LLM
+function looksLikeGreeting(text) {
+  const lower = text.toLowerCase();
+  const hasGreetingOpener = /^(שלום|היי|הי|בוקר טוב|ערב טוב)[,!. ]/.test(text);
+  const hasBotName = lower.includes('ניבי') || lower.includes('עוזר הווירטואלי') || lower.includes('עוזרת הווירטואלית');
+  const hasHelpOffer = lower.includes('אוכל לעזור') || lower.includes('אוכל לסייע') || lower.includes('כיצד אוכל');
+  return hasGreetingOpener && hasBotName && hasHelpOffer;
+}
+
 async function isGreetingReply(userMessage, botReply, providerName) {
+  // Fast path — no LLM call needed
+  if (looksLikeGreeting(botReply)) {
+    console.log(`[GreetingClassifier] heuristic=greeting for reply: ${botReply.slice(0, 80)}`);
+    return true;
+  }
+
   try {
     const settings = await SystemSettings.findOne().lean();
     const provider = providerName
