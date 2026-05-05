@@ -1,8 +1,10 @@
 const express = require('express');
+const OpenAI = require('openai');
 const Connector = require('../models/Connector');
 const MetaConnection = require('../models/MetaConnection');
 const BotBackend = require('../models/BotBackend');
 const Conversation = require('../models/Conversation');
+const SystemSettings = require('../models/SystemSettings');
 const { sendMessage, extractMessages } = require('../services/whatsapp');
 const { createAdapter } = require('../services/adapters/AdapterFactory');
 const { containsPii, redactPii } = require('../services/piiFilter');
@@ -109,20 +111,41 @@ async function handleUnsupportedMessage(connector, { from, type }) {
   }
 }
 
-const GREETING_PATTERNS = [
-  /^שלום[!,.\s]/i,
-  /^היי[!,.\s]/i,
-  /^הי[!,.\s]/i,
-  /אני ניבי/,
-  /עוזרת הווירטואלית/,
-  /במה אוכל לעזור/,
-  /שמח(?:ה)? לעזור/,
-  /^ברוך הבא/i,
-  /^ברוכים הבאים/i,
-];
+async function isGreetingReply(userMessage, botReply) {
+  try {
+    const settings = await SystemSettings.findOne().lean();
+    const provider = settings?.llmProviders?.[0];
+    if (!provider?.baseUrl && !provider?.apiKey) return false;
 
-function isGreetingReply(text) {
-  return GREETING_PATTERNS.some(p => p.test(text));
+    const client = new OpenAI({
+      baseURL: provider.baseUrl || undefined,
+      apiKey: provider.apiKey || 'no-key',
+    });
+
+    const result = await client.chat.completions.create({
+      model: provider.model || 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are a classifier. Given a user message and a bot reply, determine if the bot reply is PURELY a generic greeting or introduction (e.g. "Hello, I am X, how can I help you?") with no substantive answer to the user\'s question. ' +
+            'Reply with exactly one word: "greeting" if it contains no real answer, or "answer" if it provides any actual relevant information.',
+        },
+        {
+          role: 'user',
+          content: `User message: ${userMessage}\n\nBot reply: ${botReply}`,
+        },
+      ],
+      temperature: 0,
+      max_tokens: 5,
+    });
+
+    const verdict = result.choices[0]?.message?.content?.trim().toLowerCase();
+    return verdict === 'greeting';
+  } catch (err) {
+    console.warn('[Webhook] Greeting classifier failed, allowing reply through:', err.message);
+    return false;
+  }
 }
 
 const NEW_SESSION_TRIGGERS = ['שיחה חדשה', 'התחל שיחה חדשה', 'new conversation', 'restart'];
@@ -238,7 +261,7 @@ async function handleMessage(connector, { from, text, messageId }) {
     }
 
     // Suppress bot greeting on first message if connector already sent a welcome message
-    if (isNew && connector.welcomeMessage && isGreetingReply(reply)) {
+    if (isNew && connector.welcomeMessage && await isGreetingReply(text, reply)) {
       console.log(`[Webhook] Suppressed bot greeting for ${from} (connector has welcomeMessage)`);
       return;
     }
