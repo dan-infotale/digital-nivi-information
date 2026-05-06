@@ -36,6 +36,8 @@ export default function Conversations() {
   const [conversations, setConversations] = useState([]);
   const [connectors, setConnectors] = useState([]);
   const [filterConnector, setFilterConnector] = useState('');
+  const [filterFrom, setFilterFrom] = useState('');
+  const [filterTo, setFilterTo] = useState('');
   const [selected, setSelected] = useState(null);
   const [stats, setStats] = useState({ totalConversations: 0, todayConversations: 0, incomingMessages: 0, outgoingMessages: 0, avgDurationMinutes: 0 });
   const lastMsgRef = useRef(null);
@@ -97,9 +99,43 @@ export default function Conversations() {
               {connectors.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
             </select>
           </div>
+          <div style={{ padding: '0 12px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <input
+              type="datetime-local"
+              value={filterFrom}
+              onChange={e => setFilterFrom(e.target.value)}
+              style={{ width: '100%', fontSize: 12 }}
+              title="מתאריך"
+            />
+            <input
+              type="datetime-local"
+              value={filterTo}
+              onChange={e => setFilterTo(e.target.value)}
+              style={{ width: '100%', fontSize: 12 }}
+              title="עד תאריך"
+            />
+            {(filterFrom || filterTo) && (
+              <button
+                type="button"
+                className="btn-ghost"
+                style={{ fontSize: 11, padding: '2px 6px', alignSelf: 'flex-end' }}
+                onClick={() => { setFilterFrom(''); setFilterTo(''); }}
+              >
+                נקה סינון
+              </button>
+            )}
+          </div>
           <div className="conv-list-items">
-            {conversations.length === 0 && <div className="empty">{t('no_conversations')}</div>}
-            {conversations.map(c => (
+            {(() => {
+              const filtered = conversations.filter(c => {
+                const ts = new Date(c.createdAt || c.lastActivity).getTime();
+                if (filterFrom && ts < new Date(filterFrom).getTime()) return false;
+                if (filterTo && ts > new Date(filterTo).getTime()) return false;
+                return true;
+              });
+              return filtered.length === 0
+                ? <div className="empty">{t('no_conversations')}</div>
+                : filtered.map(c => (
               <div key={c._id} className={`conv-row ${selected?._id === c._id ? 'active' : ''}`} onClick={() => openConversation(c._id)}>
                 <div className="conv-avatar" style={{ fontSize: 11 }}>
                   <Icon name="chat" size={16} />
@@ -117,7 +153,8 @@ export default function Conversations() {
                   </div>
                 </div>
               </div>
-            ))}
+            ));
+            })()}
           </div>
         </div>
 
