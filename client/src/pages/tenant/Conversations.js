@@ -6,8 +6,13 @@ import { useLanguage } from '../../context/LanguageContext';
 import Icon from '../../components/Icons';
 import api from '../../api';
 
-function getInitials(phone) { return phone ? phone.slice(-2) : '??'; }
 function formatTime(ts) { return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+function formatDateTime(ts) {
+  const d = new Date(ts);
+  const date = d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const time = d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+  return `${date} ${time}`;
+}
 function formatDate(ts, t) {
   const d = new Date(ts), today = new Date(), yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
@@ -31,7 +36,6 @@ export default function Conversations() {
   const [conversations, setConversations] = useState([]);
   const [connectors, setConnectors] = useState([]);
   const [filterConnector, setFilterConnector] = useState('');
-  const [searchPhone, setSearchPhone] = useState('');
   const [selected, setSelected] = useState(null);
   const [stats, setStats] = useState({ totalConversations: 0, todayConversations: 0, incomingMessages: 0, outgoingMessages: 0, avgDurationMinutes: 0 });
   const lastMsgRef = useRef(null);
@@ -93,22 +97,16 @@ export default function Conversations() {
               {connectors.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
             </select>
           </div>
-          <div style={{ padding: '0 12px 8px' }}>
-            <input
-              placeholder="חיפוש לפי טלפון..."
-              value={searchPhone}
-              onChange={e => setSearchPhone(e.target.value)}
-              style={{ width: '100%' }}
-            />
-          </div>
           <div className="conv-list-items">
-            {conversations.filter(c => !searchPhone || c.phoneNumber.includes(searchPhone)).length === 0 && <div className="empty">{t('no_conversations')}</div>}
-            {conversations.filter(c => !searchPhone || c.phoneNumber.includes(searchPhone)).map(c => (
+            {conversations.length === 0 && <div className="empty">{t('no_conversations')}</div>}
+            {conversations.map(c => (
               <div key={c._id} className={`conv-row ${selected?._id === c._id ? 'active' : ''}`} onClick={() => openConversation(c._id)}>
-                <div className="conv-avatar">{getInitials(c.phoneNumber)}</div>
+                <div className="conv-avatar" style={{ fontSize: 11 }}>
+                  <Icon name="chat" size={16} />
+                </div>
                 <div className="conv-row-info">
                   <div className="conv-phone-row">
-                    <span className="conv-phone">{c.phoneNumber}</span>
+                    <span className="conv-phone">{formatDateTime(c.createdAt || c.lastActivity)}</span>
                     {c.status === 'closed' && <span className="conv-status-badge closed">{t('closed')}</span>}
                   </div>
                   {c.connector?.name && <div className="conv-connector-tag">{c.connector.name}</div>}
@@ -128,7 +126,7 @@ export default function Conversations() {
             <>
               <div className="thread-header">
                 <div>
-                  <div className="thread-phone">{selected.phoneNumber}</div>
+                  <div className="thread-phone">{formatDateTime(selected.createdAt || selected.lastActivity)}</div>
                   {selected.connectorId?.name && <div className="thread-connector">{selected.connectorId.name}</div>}
                 </div>
                 <button className="btn-danger" onClick={() => deleteConversation(selected._id)}>
