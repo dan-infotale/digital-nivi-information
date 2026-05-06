@@ -25,6 +25,19 @@ const PATTERNS = [
     name: 'doc_issue_date',
     re: /(?:תאריך\s+הנפקה|תאריך\s+תפוגה|תאריך\s+תוקף|הונפק(?:ה)?\s+ב[-–]?\s*|תוקף\s+עד\s*|תוקף\s*[:\-]\s*)[^\n]{0,10}?\d{1,2}[./-]\d{1,2}[./-]\d{2,4}/gi,
   },
+
+  // Phone number — Israeli local (05X-XXXXXXX, 0X-XXXXXXX) and international (+CC ...)
+  // Requires either an international prefix or a leading 0-area-code to avoid matching arbitrary digit runs.
+  {
+    name: 'phone',
+    re: /(?<!\d)(?:(?:\+|00)\d{1,3}[-.\s]?\(?\d{1,3}\)?[-.\s]?\d{3}[-.\s]?\d{3,4}|0\d{1,2}[-.\s]?\d{3}[-.\s]?\d{4}|05\d[-.\s]?\d{7})(?!\d)/g,
+  },
+
+  // Self-introduced name — Hebrew patterns like "שמי X", "אני X", "קוראים לי X", "השם שלי X"
+  {
+    name: 'name_intro',
+    re: /(?:שמי(?:\s+הוא)?|קוראים\s+לי|השם\s+שלי(?:\s+הוא)?|אני\s+נקרא(?:ת)?)\s+[א-ת"'\w]+(?:\s+[א-ת"'\w]+){0,2}/gi,
+  },
 ];
 
 const REDACTION = '[מידע אישי]';
