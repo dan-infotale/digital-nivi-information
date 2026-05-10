@@ -146,10 +146,14 @@ async function isGreetingReply(userMessage, botReply, providerName) {
           role: 'system',
           content:
             'You are a binary classifier for chatbot messages. ' +
-            'Your task: decide if the bot reply is a PURE greeting/introduction with NO substantive content — ' +
-            'meaning it only introduces the bot and asks how to help, without answering the user\'s question at all. ' +
-            'Examples of pure greetings: "שלום! אני ניבי, העוזרת הווירטואלית של Gov.il. במה אוכל לעזור לך היום?", "Hello! I\'m the virtual assistant, how can I help?" ' +
-            'Examples of NON-greetings (even if they start with שלום): any reply that actually answers or addresses the user\'s question. ' +
+            'Decide whether the bot reply is FILLER (a greeting, self-introduction, or generic offer-to-help) that contains NO substantive information addressing the user\'s question. ' +
+            'Classify as "greeting" if the reply is ANY of the following — even partially — and adds no real content beyond it: ' +
+            '(a) a greeting/salutation ("שלום", "היי", "Hello", "בוקר טוב"); ' +
+            '(b) a self-introduction ("אני ניבי", "I am the virtual assistant"); ' +
+            '(c) a generic offer to help ("כיצד אוכל לסייע?", "במה אוכל לעזור?", "איך אפשר לעזור לך היום?", "How can I help you?", "מה תרצה לדעת?"); ' +
+            '(d) an acknowledgement that asks the user to wait or rephrase without giving info ("רגע אחד", "אני בודק עבורך", "תוכל להבהיר?"). ' +
+            'Classify as "answer" ONLY if the reply contains real substantive content that addresses or partially addresses the user\'s question — facts, instructions, links, data, a specific clarifying question about the topic, etc. ' +
+            'A reply that mixes a greeting with substantive content is "answer". A reply that is purely greeting + offer-to-help with no content is "greeting". ' +
             'Respond with ONLY the word "greeting" or "answer". No punctuation, no explanation.',
         },
         {
