@@ -121,18 +121,27 @@ function looksLikeGreeting(text) {
 }
 
 async function isGreetingReply(userMessage, botReply, providerName) {
+  const userSnip = (userMessage || '').slice(0, 120);
+  const replySnip = (botReply || '').slice(0, 200);
+  console.log(`[GreetingClassifier] INPUT user="${userSnip}" reply="${replySnip}" provider="${providerName || '(default)'}"`);
+
   // Fast path — no LLM call needed
   if (looksLikeGreeting(botReply)) {
-    console.log(`[GreetingClassifier] heuristic=greeting for reply: ${botReply.slice(0, 80)}`);
+    console.log(`[GreetingClassifier] DECISION=greeting source=heuristic action=SUPPRESS`);
     return true;
   }
+  console.log(`[GreetingClassifier] heuristic=no-match, falling back to LLM`);
 
   try {
     const settings = await SystemSettings.findOne().lean();
     const provider = providerName
       ? settings?.llmProviders?.find(p => p.name === providerName)
       : settings?.llmProviders?.[0];
-    if (!provider?.baseUrl && !provider?.apiKey) return false;
+    if (!provider?.baseUrl && !provider?.apiKey) {
+      console.warn(`[GreetingClassifier] DECISION=answer source=no-provider action=ALLOW (provider="${providerName || '(default)'}" not found or has no creds)`);
+      return false;
+    }
+    console.log(`[GreetingClassifier] using provider name="${provider.name}" model="${provider.model || 'gpt-4o'}" baseUrl="${provider.baseUrl || '(default)'}"`);
 
     const client = new OpenAI({
       baseURL: provider.baseUrl || undefined,
@@ -166,10 +175,12 @@ async function isGreetingReply(userMessage, botReply, providerName) {
     });
 
     const raw = result.choices[0]?.message?.content?.trim().toLowerCase() || '';
-    console.log(`[GreetingClassifier] verdict="${raw}" for reply: ${botReply.slice(0, 80)}`);
-    return raw.startsWith('greeting');
+    const isGreeting = raw.startsWith('greeting');
+    console.log(`[GreetingClassifier] LLM raw="${raw}" parsed=${isGreeting ? 'greeting' : 'answer'}`);
+    console.log(`[GreetingClassifier] DECISION=${isGreeting ? 'greeting' : 'answer'} source=llm action=${isGreeting ? 'SUPPRESS' : 'ALLOW'}`);
+    return isGreeting;
   } catch (err) {
-    console.warn('[Webhook] Greeting classifier failed, allowing reply through:', err.message);
+    console.warn(`[GreetingClassifier] DECISION=answer source=error action=ALLOW error="${err.message}"`);
     return false;
   }
 }
@@ -287,8 +298,10 @@ async function handleMessage(connector, { from, text, messageId }) {
     }
 
     // Suppress bot greeting on first message if enabled and connector already sent a welcome message
-    if (isNew && connector.suppressBotGreeting && connector.welcomeMessage &&
-        await isGreetingReply(text, reply, connector.greetingClassifierProvider)) {
+    const shouldClassify = isNew && connector.suppressBotGreeting && connector.welcomeMessage;
+    if (!shouldClassify) {
+      console.log(`[GreetingClassifier] SKIPPED for ${from}: isNew=${isNew} suppressBotGreeting=${!!connector.suppressBotGreeting} hasWelcomeMessage=${!!connector.welcomeMessage}`);
+    } else if (await isGreetingReply(text, reply, connector.greetingClassifierProvider)) {
       console.log(`[Webhook] Suppressed bot greeting for ${from} (suppressBotGreeting enabled)`);
       return;
     }
