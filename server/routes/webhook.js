@@ -111,13 +111,21 @@ async function handleUnsupportedMessage(connector, { from, type }) {
   }
 }
 
-// Fast heuristic: catches bot self-introduction greetings without LLM
+// Fast heuristic: catches greeting-only replies without LLM
 function looksLikeGreeting(text) {
-  const lower = text.toLowerCase();
-  const hasGreetingOpener = /^(שלום|היי|הי|בוקר טוב|ערב טוב)[,!. ]/.test(text);
+  if (!text) return false;
+  const trimmed = text.trim();
+  const lower = trimmed.toLowerCase();
+  const hasGreetingOpener = /^(שלום|היי|הי|בוקר טוב|ערב טוב|hello|hi)[,!.? ]/i.test(trimmed);
   const hasBotName = lower.includes('ניבי') || lower.includes('עוזר הווירטואלי') || lower.includes('עוזרת הווירטואלית');
-  const hasHelpOffer = lower.includes('אוכל לעזור') || lower.includes('אוכל לסייע') || lower.includes('כיצד אוכל');
-  return hasGreetingOpener && hasBotName && hasHelpOffer;
+  const hasHelpOffer = lower.includes('אוכל לעזור') || lower.includes('אוכל לסייע') ||
+                       lower.includes('כיצד אוכל') || lower.includes('במה אוכל') ||
+                       lower.includes('how can i help') || lower.includes('how may i help');
+  // Strict path: greeting + bot self-intro + help offer (any length)
+  if (hasGreetingOpener && hasBotName && hasHelpOffer) return true;
+  // Relaxed path: short reply with greeting opener + generic help offer = no substantive content
+  if (hasGreetingOpener && hasHelpOffer && trimmed.length < 120) return true;
+  return false;
 }
 
 async function isGreetingReply(userMessage, botReply, providerName) {
@@ -171,12 +179,17 @@ async function isGreetingReply(userMessage, botReply, providerName) {
         },
       ],
       temperature: 0,
-      max_tokens: 10,
+      max_tokens: 512,
     });
 
-    const raw = result.choices[0]?.message?.content?.trim().toLowerCase() || '';
-    const isGreeting = raw.startsWith('greeting');
-    console.log(`[GreetingClassifier] LLM raw="${raw}" parsed=${isGreeting ? 'greeting' : 'answer'}`);
+    const msg = result.choices[0]?.message;
+    const raw = (msg?.content || '').trim().toLowerCase();
+    const finishReason = result.choices[0]?.finish_reason;
+    // Reasoning models can include "thinking" before the verdict; take the LAST occurrence of greeting/answer.
+    const lastGreeting = raw.lastIndexOf('greeting');
+    const lastAnswer = raw.lastIndexOf('answer');
+    const isGreeting = lastGreeting >= 0 && lastGreeting > lastAnswer;
+    console.log(`[GreetingClassifier] LLM raw="${raw.slice(0, 300)}" finish=${finishReason} parsed=${isGreeting ? 'greeting' : (lastAnswer >= 0 ? 'answer' : 'unparseable')}`);
     console.log(`[GreetingClassifier] DECISION=${isGreeting ? 'greeting' : 'answer'} source=llm action=${isGreeting ? 'SUPPRESS' : 'ALLOW'}`);
     return isGreeting;
   } catch (err) {
