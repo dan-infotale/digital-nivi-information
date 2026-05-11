@@ -213,4 +213,28 @@ router.put('/settings', async (req, res) => {
   res.json(scrubSettings(s));
 });
 
+router.post('/settings/test-llm', async (req, res) => {
+  const { providerId } = req.body;
+  if (!providerId) return res.status(400).json({ ok: false, error: 'providerId required' });
+
+  const settings = await SystemSettings.findOne().lean();
+  const provider = settings?.llmProviders?.find(p => p._id?.toString() === String(providerId));
+  if (!provider) return res.json({ ok: false, error: 'Provider not found' });
+
+  try {
+    const OpenAI = require('openai');
+    const client = new OpenAI({ baseURL: provider.baseUrl || undefined, apiKey: provider.apiKey || 'no-key' });
+    const response = await client.chat.completions.create({
+      model: provider.model || 'gpt-4o',
+      messages: [{ role: 'user', content: 'ping' }],
+      max_tokens: 5,
+    });
+    const reply = response.choices[0]?.message?.content || 'ok';
+    return res.json({ ok: true, message: `Model responded: "${reply}"` });
+  } catch (err) {
+    const status = err.status || err.response?.status;
+    return res.json({ ok: false, error: `${status ? `${status}: ` : ''}${err.message}` });
+  }
+});
+
 module.exports = router;

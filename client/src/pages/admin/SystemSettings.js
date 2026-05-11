@@ -16,6 +16,7 @@ export default function SystemSettings() {
 
   const [providerModal, setProviderModal] = useState(null); // null | { mode: 'add'|'edit', index?: number }
   const [providerForm, setProviderForm] = useState(EMPTY_PROVIDER);
+  const [testing, setTesting] = useState({}); // { [providerId]: 'pending' | { ok, message|error } }
 
   const load = useCallback(async () => {
     const { data } = await api.get('/admin/settings');
@@ -70,6 +71,20 @@ export default function SystemSettings() {
   function removeProvider(index) {
     if (!window.confirm('Delete this provider?')) return;
     setSettings(s => ({ ...s, llmProviders: s.llmProviders.filter((_, i) => i !== index) }));
+  }
+
+  async function testProvider(providerId) {
+    if (!providerId) {
+      setTesting(t => ({ ...t, _new: { ok: false, error: 'Save the provider before testing' } }));
+      return;
+    }
+    setTesting(t => ({ ...t, [providerId]: 'pending' }));
+    try {
+      const { data } = await api.post('/admin/settings/test-llm', { providerId });
+      setTesting(t => ({ ...t, [providerId]: data }));
+    } catch (err) {
+      setTesting(t => ({ ...t, [providerId]: { ok: false, error: err.response?.data?.error || err.message } }));
+    }
   }
 
   const pf = (k) => ({
@@ -130,18 +145,30 @@ export default function SystemSettings() {
               </tr>
             </thead>
             <tbody>
-              {settings.llmProviders.map((p, i) => (
-                <tr key={i}>
-                  <td>{p.name}</td>
-                  <td><code style={{ fontSize: 11 }}>{p.baseUrl || '—'}</code></td>
-                  <td><code style={{ fontSize: 11 }}>{p.model || '—'}</code></td>
-                  <td>{p.apiKey ? '●●●●●●' : <span style={{ color: 'var(--fg-4)' }}>not set</span>}</td>
-                  <td className="actions">
-                    <button type="button" onClick={() => openEditProvider(i)}>{t('edit')}</button>
-                    <button type="button" className="btn-danger" onClick={() => removeProvider(i)}>{t('delete')}</button>
-                  </td>
-                </tr>
-              ))}
+              {settings.llmProviders.map((p, i) => {
+                const result = testing[p._id];
+                const pending = result === 'pending';
+                return (
+                  <tr key={i}>
+                    <td>{p.name}</td>
+                    <td><code style={{ fontSize: 11 }}>{p.baseUrl || '—'}</code></td>
+                    <td><code style={{ fontSize: 11 }}>{p.model || '—'}</code></td>
+                    <td>{p.apiKey ? '●●●●●●' : <span style={{ color: 'var(--fg-4)' }}>not set</span>}</td>
+                    <td className="actions">
+                      <button type="button" onClick={() => testProvider(p._id)} disabled={pending}>
+                        {pending ? 'Testing…' : 'Test'}
+                      </button>
+                      <button type="button" onClick={() => openEditProvider(i)}>{t('edit')}</button>
+                      <button type="button" className="btn-danger" onClick={() => removeProvider(i)}>{t('delete')}</button>
+                      {result && result !== 'pending' && (
+                        <div style={{ fontSize: 11, marginTop: 4, color: result.ok ? 'var(--ok, #2a8a3a)' : 'var(--err, #c0392b)' }}>
+                          {result.ok ? `✓ ${result.message}` : `✗ ${result.error}`}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
               {settings.llmProviders.length === 0 && (
                 <tr><td colSpan={5} className="empty">{t('no_providers')}</td></tr>
               )}
