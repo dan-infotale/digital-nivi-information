@@ -219,9 +219,16 @@ async function createNewConversation(connector, bot, from) {
   return conv;
 }
 
-async function handleMessage(connector, { from, text, messageId }) {
+async function handleMessage(connector, { from, text, messageId }, options = {}) {
+  const { testMode = false } = options;
   const meta = connector.metaConnectionId;
   const bot = connector.botBackendId;
+  const result = { outbound: [], suppressed: false, classifier: null, status: 'ok' };
+
+  const deliver = async (body) => {
+    result.outbound.push(body);
+    if (!testMode) await sendMessage(meta, from, body);
+  };
 
   // Only match active conversations — closed ones stay as historical records
   let conversation = await Conversation.findOne({ connectorId: connector._id, phoneNumber: from, status: 'active' });
@@ -232,7 +239,10 @@ async function handleMessage(connector, { from, text, messageId }) {
   }
 
   // DB-level dedup
-  if (conversation.messages.some(m => m.whatsappMessageId === messageId)) return;
+  if (conversation.messages.some(m => m.whatsappMessageId === messageId)) {
+    result.status = 'duplicate';
+    return result;
+  }
 
   // PII/PCI guard — redact, warn user, skip bot (only if enabled on the bot backend)
   if (bot.config?.piiFilter && containsPii(text)) {
@@ -243,8 +253,9 @@ async function handleMessage(connector, { from, text, messageId }) {
     const warning = 'אנא המנע משליחה של מידע אישי בשיחה זו';
     conversation.messages.push({ direction: 'outgoing', body: warning });
     await conversation.save();
-    await sendMessage(meta, from, warning);
-    return;
+    await deliver(warning);
+    result.status = 'pii_blocked';
+    return result;
   }
 
   // Handle new session request — close current conv, open a fresh document
@@ -261,22 +272,24 @@ async function handleMessage(connector, { from, text, messageId }) {
         await createAdapter(bot).then(a => a.initialize(newConv));
       } catch (err) {
         console.error(`[Webhook] New session init failed for ${from}:`, err.message);
-        await sendError(meta, newConv, from, 'מצטערים, לא הצלחנו ליצור חיבור למערכת. אנא נסה שוב.');
-        return;
+        await sendErrorVia(deliver, newConv, 'מצטערים, לא הצלחנו ליצור חיבור למערכת. אנא נסה שוב.');
+        result.status = 'session_init_failed';
+        return result;
       }
     }
     if (connector.welcomeMessage) {
       newConv.messages.push({ direction: 'outgoing', body: connector.welcomeMessage });
       newConv.lastActivity = new Date();
       await newConv.save();
-      await sendMessage(meta, from, connector.welcomeMessage);
+      await deliver(connector.welcomeMessage);
     }
     const confirmMsg = 'בוודאי! מתחילים שיחה חדשה. כיצד אוכל לעזור?';
     newConv.messages.push({ direction: 'outgoing', body: confirmMsg });
     newConv.lastActivity = new Date();
     await newConv.save();
-    await sendMessage(meta, from, confirmMsg);
-    return;
+    await deliver(confirmMsg);
+    result.status = 'new_session';
+    return result;
   }
 
   conversation.messages.push({ direction: 'incoming', body: text, whatsappMessageId: messageId });
@@ -286,7 +299,7 @@ async function handleMessage(connector, { from, text, messageId }) {
   if (isNew && connector.welcomeMessage) {
     conversation.messages.push({ direction: 'outgoing', body: connector.welcomeMessage });
     await conversation.save();
-    await sendMessage(meta, from, connector.welcomeMessage);
+    await deliver(connector.welcomeMessage);
   }
 
   const adapter = await createAdapter(bot);
@@ -297,8 +310,9 @@ async function handleMessage(connector, { from, text, messageId }) {
       await adapter.initialize(conversation);
     } catch (err) {
       console.error(`[Webhook] Session init failed for ${from}:`, err.message);
-      await sendError(meta, conversation, from, 'מצטערים, לא הצלחנו ליצור חיבור למערכת. אנא נסה שוב.');
-      return;
+      await sendErrorVia(deliver, conversation, 'מצטערים, לא הצלחנו ליצור חיבור למערכת. אנא נסה שוב.');
+      result.status = 'session_init_failed';
+      return result;
     }
   }
 
@@ -309,21 +323,30 @@ async function handleMessage(connector, { from, text, messageId }) {
     } else {
       reply = await adapter.sendMessage(conversation, text);
     }
+    result.botReply = reply;
 
     // Suppress bot greeting on first message if enabled and connector already sent a welcome message
     const shouldClassify = isNew && connector.suppressBotGreeting && connector.welcomeMessage;
     if (!shouldClassify) {
       console.log(`[GreetingClassifier] SKIPPED for ${from}: isNew=${isNew} suppressBotGreeting=${!!connector.suppressBotGreeting} hasWelcomeMessage=${!!connector.welcomeMessage}`);
-    } else if (await isGreetingReply(text, reply, connector.greetingClassifierProvider)) {
-      console.log(`[Webhook] Suppressed bot greeting for ${from} (suppressBotGreeting enabled)`);
-      return;
+      result.classifier = { ran: false, reason: 'skipped', isNew, suppressBotGreeting: !!connector.suppressBotGreeting, hasWelcomeMessage: !!connector.welcomeMessage };
+    } else {
+      const isGreeting = await isGreetingReply(text, reply, connector.greetingClassifierProvider);
+      result.classifier = { ran: true, decision: isGreeting ? 'greeting' : 'answer' };
+      if (isGreeting) {
+        console.log(`[Webhook] Suppressed bot greeting for ${from} (suppressBotGreeting enabled)`);
+        result.suppressed = true;
+        result.status = 'greeting_suppressed';
+        return result;
+      }
     }
 
     conversation.messages.push({ direction: 'outgoing', body: reply });
     conversation.lastActivity = new Date();
     await conversation.save();
 
-    await sendMessage(meta, from, reply);
+    await deliver(reply);
+    return result;
   } catch (err) {
     console.error(`[Webhook] Bot error for ${from}:`, err.message);
     let msg = 'מצטערים, אירעה שגיאה. אנא נסה שוב מאוחר יותר.';
@@ -332,18 +355,50 @@ async function handleMessage(connector, { from, text, messageId }) {
     } else if (err.response?.status >= 500) {
       msg = 'מצטערים, יש תקלה במערכת. אנא נסה שוב מאוחר יותר.';
     }
-    await sendError(meta, conversation, from, msg);
+    await sendErrorVia(deliver, conversation, msg);
+    result.status = 'bot_error';
+    result.error = err.message;
+    return result;
   }
 }
 
-async function sendError(meta, conversation, from, msg) {
+async function sendErrorVia(deliver, conversation, msg) {
   try {
     conversation.messages.push({ direction: 'outgoing', body: msg });
     await conversation.save();
-    await sendMessage(meta, from, msg);
+    await deliver(msg);
   } catch (err) {
-    console.error(`[Webhook] Failed to send error message to ${from}:`, err.message);
+    console.error(`[Webhook] Failed to send error message:`, err.message);
   }
 }
+
+// Test endpoint — processes synchronously, skips outbound WhatsApp delivery, returns the bot reply inline.
+// Useful for E2E tests without DB inspection or Meta quota.
+router.post('/:connectorId/test', express.json(), async (req, res) => {
+  try {
+    const connector = await Connector.findById(req.params.connectorId)
+      .populate('metaConnectionId')
+      .populate('botBackendId');
+    if (!connector) return res.status(404).json({ error: 'Connector not found' });
+    if (!connector.active) return res.status(409).json({ error: 'Connector is inactive' });
+
+    const messages = extractMessages(req.body);
+    if (messages.length === 0) return res.status(400).json({ error: 'No messages in payload (check shape)' });
+
+    const results = [];
+    for (const msg of messages) {
+      if (msg.type !== 'text') {
+        results.push({ from: msg.from, type: msg.type, status: 'unsupported_type' });
+        continue;
+      }
+      const r = await handleMessage(connector, msg, { testMode: true });
+      results.push({ from: msg.from, messageId: msg.messageId, ...r });
+    }
+    res.json({ ok: true, results });
+  } catch (err) {
+    console.error('[Webhook /test] error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 module.exports = router;
