@@ -70,6 +70,25 @@ async function sendMessage(metaConnection, to, text) {
   }
 }
 
+async function sendTypingIndicator(metaConnection, messageId) {
+  await axios.post(
+    metaConnection.apiUrl,
+    {
+      messaging_product: 'whatsapp',
+      status: 'read',
+      message_id: messageId,
+      typing_indicator: { type: 'text' },
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${metaConnection.token}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: 10000,
+    }
+  );
+}
+
 function extractMessages(body) {
   const messages = [];
   if (body.object === 'whatsapp_business_account' && body.entry) {
@@ -102,4 +121,4 @@ function extractMessages(body) {
   return messages;
 }
 
-module.exports = { sendMessage, extractMessages, cleanForWhatsApp };
+module.exports = { sendMessage, sendTypingIndicator, extractMessages, cleanForWhatsApp };

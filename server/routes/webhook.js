@@ -5,7 +5,7 @@ const MetaConnection = require('../models/MetaConnection');
 const BotBackend = require('../models/BotBackend');
 const Conversation = require('../models/Conversation');
 const SystemSettings = require('../models/SystemSettings');
-const { sendMessage, extractMessages } = require('../services/whatsapp');
+const { sendMessage, sendTypingIndicator, extractMessages } = require('../services/whatsapp');
 const { createAdapter } = require('../services/adapters/AdapterFactory');
 const { containsPii, redactPii } = require('../services/piiFilter');
 
@@ -77,6 +77,9 @@ router.post('/:connectorId', async (req, res) => {
         );
         continue;
       }
+      sendTypingIndicator(connector.metaConnectionId, msg.messageId).catch(err =>
+        console.warn(`[Webhook] Typing indicator failed for ${msg.from}: ${err.message}`)
+      );
       withPhoneLock(`${connector._id}:${msg.from}`, () =>
         handleMessage(connector, msg).catch(err =>
           console.error(`[Webhook] Unhandled error for ${msg.from}:`, err.message)
