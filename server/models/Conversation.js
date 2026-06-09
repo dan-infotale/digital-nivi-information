@@ -5,15 +5,23 @@ const messageSchema = new mongoose.Schema({
   body: { type: String, required: true },
   timestamp: { type: Date, default: Date.now },
   whatsappMessageId: String,
-});
+}, { _id: false });
 
-const conversationSchema = new mongoose.Schema({
+const schema = new mongoose.Schema({
+  tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
+  connectorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Connector', required: true, index: true },
   phoneNumber: { type: String, required: true, index: true },
-  niviUserId: { type: String, required: true },
-  niviSessionId: { type: String, required: true },
+  // Nivi-specific session identifiers
+  niviUserId: { type: String, default: null },
+  niviSessionId: { type: String, default: null },
+  // OpenAI-compatible conversation history [{role, content}]
+  openaiHistory: { type: Array, default: [] },
   messages: [messageSchema],
+  status: { type: String, enum: ['active', 'closed'], default: 'active' },
   lastActivity: { type: Date, default: Date.now },
   createdAt: { type: Date, default: Date.now },
 });
 
-module.exports = mongoose.model('Conversation', conversationSchema);
+schema.index({ connectorId: 1, phoneNumber: 1, status: 1 });
+
+module.exports = mongoose.model('Conversation', schema);

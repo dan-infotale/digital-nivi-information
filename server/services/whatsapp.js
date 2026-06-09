@@ -1,89 +1,97 @@
 const axios = require('axios');
 
-const WHATSAPP_API_URL = process.env.WHATSAPP_API_URL;
-const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
-
 const MAX_LENGTH = 4096;
 
-// Clean Nivi's markdown formatting for WhatsApp
 function cleanForWhatsApp(text) {
-  // Convert markdown links [text](url) to WhatsApp-friendly format
-  text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '\n🔗 *$1*\n$2\n');
+  // Preserve fenced code blocks — WhatsApp renders ```code``` natively
+  const codeBlocks = [];
+  text = text.replace(/```[\w]*\n?([\s\S]*?)```/g, (_, code) => {
+    const ph = `\x00BLOCK${codeBlocks.length}\x00`;
+    codeBlocks.push(`\`\`\`\n${code.trim()}\n\`\`\``);
+    return ph;
+  });
 
-  // Remove stray leading asterisks before numbered items (e.g. "*1." → "1.")
-  text = text.replace(/\*(\d+\.)/g, '$1');
-  // Convert markdown bold **text** or *text* to WhatsApp bold *text*
-  // First handle double asterisks
-  text = text.replace(/\*\*(.+?)\*\*/g, '*$1*');
-  // Remove unmatched/orphan asterisks (not part of a *bold* pair)
-  // Count asterisks — if odd number, strip all non-paired ones
-  const parts = text.split('*');
-  if (parts.length > 1) {
-    // Rebuild: keep matched pairs, strip orphans
-    let result = '';
-    let i = 0;
-    while (i < parts.length) {
-      result += parts[i];
-      if (i + 1 < parts.length) {
-        // Check if the next segment looks like a bold word/phrase (non-empty, no newlines)
-        const candidate = parts[i + 1];
-        if (candidate && !candidate.includes('\n') && candidate.trim().length > 0) {
-          result += '*' + candidate + '*';
-          i += 2;
-        } else {
-          i += 1;
-        }
-      } else {
-        i += 1;
-      }
-    }
-    text = result;
-  }
-  // Collapse multiple blank lines and trim whitespace on each line
-  text = text.split('\n').map(l => l.trim()).join('\n');
+  // Italic first (before bold produces lone *) — markdown *text* → WhatsApp _text_
+  // Negative lookahead/behind ensures we don't touch **bold**
+  text = text.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '_$1_');
+
+  // Bold: **text** or __text__ → *text*  (runs after italic so output is safe)
+  text = text.replace(/\*\*(.+?)\*\*/gs, '*$1*');
+  text = text.replace(/__(.+?)__/gs, '*$1*');
+
+  // Headings → *bold*  (runs after italic for same reason)
+  text = text.replace(/^#{1,6}\s+(.+)$/gm, '*$1*');
+
+  // Strikethrough: ~~text~~ → ~text~
+  text = text.replace(/~~(.+?)~~/g, '~$1~');
+
+  // Links: [text](url) → text\nurl  (match any non-whitespace URL)
+  text = text.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '$1\n$2');
+
+  // Horizontal rules → remove
+  text = text.replace(/^[-*_]{3,}$/gm, '');
+
+  // Bullet lists: - or * at line start → •
+  text = text.replace(/^[ \t]*[-*]\s+/gm, '• ');
+
+  // Restore code blocks
+  codeBlocks.forEach((block, i) => {
+    text = text.replace(`\x00BLOCK${i}\x00`, block);
+  });
+
+  // Clean up whitespace
+  text = text.split('\n').map(l => l.trimEnd()).join('\n');
   text = text.replace(/\n{3,}/g, '\n\n');
-  return text.trim();
+  text = text.trim();
+
+  return text;
 }
 
-async function sendMessage(to, text) {
+async function sendMessage(metaConnection, to, text) {
   text = cleanForWhatsApp(text);
-  // Split into chunks if text exceeds WhatsApp's 4096 char limit
   const chunks = [];
   for (let i = 0; i < text.length; i += MAX_LENGTH) {
     chunks.push(text.substring(i, i + MAX_LENGTH));
   }
 
   for (const chunk of chunks) {
-    try {
-      await axios.post(
-        WHATSAPP_API_URL,
-        {
-          messaging_product: 'whatsapp',
-          to,
-          type: 'text',
-          text: { body: chunk },
+    await axios.post(
+      metaConnection.apiUrl,
+      { messaging_product: 'whatsapp', to, type: 'text', text: { body: chunk, preview_url: true } },
+      {
+        headers: {
+          Authorization: `Bearer ${metaConnection.token}`,
+          'Content-Type': 'application/json',
         },
-        {
-          headers: {
-            Authorization: `Bearer ${WHATSAPP_TOKEN}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-      console.log(`[WhatsApp] Message sent to ${to} (${chunk.length} chars)`);
-    } catch (error) {
-      console.error('[WhatsApp] Send error:', error.response?.data || error.message);
-      throw error;
-    }
+        timeout: 15000,
+      }
+    );
+    console.log(`[WhatsApp] Sent to ${to} via connection "${metaConnection.name}" (${chunk.length} chars)`);
   }
+}
+
+async function sendTypingIndicator(metaConnection, messageId) {
+  await axios.post(
+    metaConnection.apiUrl,
+    {
+      messaging_product: 'whatsapp',
+      status: 'read',
+      message_id: messageId,
+      typing_indicator: { type: 'text' },
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${metaConnection.token}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: 10000,
+    }
+  );
 }
 
 function extractMessages(body) {
   const messages = [];
-  if (
-    body.object === 'whatsapp_business_account' &&
-    body.entry
-  ) {
+  if (body.object === 'whatsapp_business_account' && body.entry) {
     for (const entry of body.entry) {
       for (const change of entry.changes || []) {
         if (change.field === 'messages' && change.value?.messages) {
@@ -94,6 +102,15 @@ function extractMessages(body) {
                 text: msg.text.body,
                 messageId: msg.id,
                 timestamp: msg.timestamp,
+                type: 'text',
+              });
+            } else if (['image', 'audio', 'video', 'document', 'sticker', 'voice', 'contacts', 'location'].includes(msg.type)) {
+              messages.push({
+                from: msg.from,
+                text: null,
+                messageId: msg.id,
+                timestamp: msg.timestamp,
+                type: msg.type,
               });
             }
           }
@@ -104,4 +121,4 @@ function extractMessages(body) {
   return messages;
 }
 
-module.exports = { sendMessage, extractMessages, cleanForWhatsApp };
+module.exports = { sendMessage, sendTypingIndicator, extractMessages, cleanForWhatsApp };

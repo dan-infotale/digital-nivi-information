@@ -69,4 +69,30 @@ router.get('/stats', async (req, res) => {
   }
 });
 
+// Check WhatsApp connection by calling the Meta Graph API
+router.get('/check-connection', async (req, res) => {
+  const axios = require('axios');
+  const url = process.env.WHATSAPP_API_URL; // e.g. https://graph.facebook.com/v25.0/{phoneId}/messages
+  const token = process.env.WHATSAPP_TOKEN;
+
+  if (!url || !token) {
+    return res.status(500).json({ ok: false, error: 'WHATSAPP_API_URL or WHATSAPP_TOKEN not configured' });
+  }
+
+  // Derive the phone number ID endpoint from the messages URL
+  const phoneEndpoint = url.replace(/\/messages$/, '');
+
+  try {
+    const { data } = await axios.get(phoneEndpoint, {
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 8000,
+    });
+    res.json({ ok: true, name: data.verified_name || data.display_phone_number || data.id });
+  } catch (err) {
+    const status = err.response?.status;
+    const message = err.response?.data?.error?.message || err.message;
+    res.json({ ok: false, error: `${status ? `${status}: ` : ''}${message}` });
+  }
+});
+
 module.exports = router;

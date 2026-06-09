@@ -1,113 +1,75 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { LanguageProvider, useLanguage } from './context/LanguageContext';
+import Login from './pages/Login';
+import SystemLogin from './pages/SystemLogin';
+import AuthCallback from './pages/AuthCallback';
+import Tenants from './pages/admin/Tenants';
+import SystemAdmins from './pages/admin/SystemAdmins';
+import SystemSettings from './pages/admin/SystemSettings';
+import MetaConnections from './pages/tenant/MetaConnections';
+import BotBackends from './pages/tenant/BotBackends';
+import Connectors from './pages/tenant/Connectors';
+import Conversations from './pages/tenant/Conversations';
+import KnowledgeBases from './pages/tenant/KnowledgeBases';
 import './App.css';
 
-function App() {
-  const [conversations, setConversations] = useState([]);
-  const [selectedConversation, setSelectedConversation] = useState(null);
-  const [stats, setStats] = useState({ totalConversations: 0, todayConversations: 0, totalMessages: 0 });
-
-  useEffect(() => {
-    fetchStats();
-    fetchConversations();
-    const interval = setInterval(() => {
-      fetchConversations();
-      fetchStats();
-    }, 10000);
-    return () => clearInterval(interval);
-  }, []);
-
-  async function fetchConversations() {
-    try {
-      const { data } = await axios.get('/api/conversations');
-      setConversations(data);
-    } catch (err) {
-      console.error('Failed to fetch conversations:', err);
-    }
-  }
-
-  async function fetchStats() {
-    try {
-      const { data } = await axios.get('/api/stats');
-      setStats(data);
-    } catch (err) {
-      console.error('Failed to fetch stats:', err);
-    }
-  }
-
-  async function openConversation(id) {
-    try {
-      const { data } = await axios.get(`/api/conversations/${id}`);
-      setSelectedConversation(data);
-    } catch (err) {
-      console.error('Failed to fetch conversation:', err);
-    }
-  }
-
-  return (
-    <div className="app">
-      <header className="header">
-        <h1>Nivi WhatsApp Integration</h1>
-        <div className="stats">
-          <div className="stat-card">
-            <span className="stat-number">{stats.totalConversations}</span>
-            <span className="stat-label">שיחות</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-number">{stats.todayConversations}</span>
-            <span className="stat-label">היום</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-number">{stats.totalMessages}</span>
-            <span className="stat-label">הודעות</span>
-          </div>
-        </div>
-      </header>
-
-      <div className="content">
-        <div className="conversation-list">
-          <h2>שיחות</h2>
-          {conversations.length === 0 && <p className="empty">אין שיחות עדיין</p>}
-          {conversations.map(c => (
-            <div
-              key={c._id}
-              className={`conversation-item ${selectedConversation?._id === c._id ? 'active' : ''}`}
-              onClick={() => openConversation(c._id)}
-            >
-              <div className="conv-phone">{c.phoneNumber}</div>
-              <div className="conv-preview">{c.lastMessage}</div>
-              <div className="conv-meta">
-                <span>{c.messageCount} הודעות</span>
-                <span>{new Date(c.lastActivity).toLocaleString('he-IL')}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="message-view">
-          {selectedConversation ? (
-            <>
-              <h2>שיחה עם {selectedConversation.phoneNumber}</h2>
-              <div className="messages">
-                {selectedConversation.messages.map((msg, i) => (
-                  <div key={i} className={`message ${msg.direction}`}>
-                    <div className="message-bubble">
-                      <p>{msg.body}</p>
-                      <span className="message-time">
-                        {new Date(msg.timestamp).toLocaleTimeString('he-IL')}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <div className="no-selection">בחר שיחה מהרשימה</div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+function RequireAdmin({ children }) {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.type !== 'system_admin') return <Navigate to="/conversations" replace />;
+  return children;
 }
 
-export default App;
+function RequireTenant({ children }) {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.type !== 'tenant_user') return <Navigate to="/admin/tenants" replace />;
+  return children;
+}
+
+function Root() {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  return <Navigate to={user.type === 'system_admin' ? '/admin/tenants' : '/conversations'} replace />;
+}
+
+function DirSync() {
+  const { lang } = useLanguage();
+  useEffect(() => {
+    document.documentElement.dir = lang === 'he' ? 'rtl' : 'ltr';
+    document.documentElement.lang = lang;
+  }, [lang]);
+  return null;
+}
+
+export default function App() {
+  return (
+    <LanguageProvider>
+      <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/system" element={<SystemLogin />} />
+          <Route path="/system-login" element={<SystemLogin />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
+
+          <Route path="/admin/tenants" element={<RequireAdmin><Tenants /></RequireAdmin>} />
+          <Route path="/admin/admins" element={<RequireAdmin><SystemAdmins /></RequireAdmin>} />
+          <Route path="/admin/settings" element={<RequireAdmin><SystemSettings /></RequireAdmin>} />
+
+          <Route path="/conversations" element={<RequireTenant><Conversations /></RequireTenant>} />
+          <Route path="/connectors" element={<RequireTenant><Connectors /></RequireTenant>} />
+          <Route path="/connections" element={<RequireTenant><MetaConnections /></RequireTenant>} />
+          <Route path="/bots" element={<RequireTenant><BotBackends /></RequireTenant>} />
+          <Route path="/knowledge" element={<RequireTenant><KnowledgeBases /></RequireTenant>} />
+
+          <Route path="*" element={<Root />} />
+        </Routes>
+        <DirSync />
+      </BrowserRouter>
+      </AuthProvider>
+    </LanguageProvider>
+  );
+}
