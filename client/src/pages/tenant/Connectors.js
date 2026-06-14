@@ -10,6 +10,7 @@ const EMPTY_FORM = {
   welcomeMessage: '', unsupportedMessage: '',
   autoCloseMinutes: 15, autoCloseMessage: '',
   suppressBotGreeting: false, greetingClassifierProvider: '',
+  rewriteEnabled: false, rewritePrompt: '', rewriteProvider: '',
   retention: { enabled: false, days: 90, deleteMode: 'full' },
 };
 
@@ -128,6 +129,9 @@ export default function Connectors() {
       autoCloseMessage: item.autoCloseMessage || '',
       suppressBotGreeting: !!item.suppressBotGreeting,
       greetingClassifierProvider: item.greetingClassifierProvider || '',
+      rewriteEnabled: !!item.rewriteEnabled,
+      rewritePrompt: item.rewritePrompt || '',
+      rewriteProvider: item.rewriteProvider || '',
       retention: item.retention || { enabled: false, days: 90, deleteMode: 'full' },
     });
     setError('');
@@ -379,6 +383,45 @@ export default function Connectors() {
                   onChange={v => setForm(f => ({ ...f, autoCloseMessage: v }))}
                   placeholder="תודה על פנייתך, הפניה נסגרה, נשמח לעמוד לשירותך בכל זמן"
                 />
+              </div>
+            </fieldset>
+
+            <fieldset style={{ marginTop: 8 }}>
+              <legend style={{ fontWeight: 600, fontSize: 13 }}>עריכת תגובת הבוט (Rewrite)</legend>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 10 }}>
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={!!form.rewriteEnabled}
+                    onChange={e => setForm(f => ({ ...f, rewriteEnabled: e.target.checked }))}
+                  />
+                  ערוך את תגובת הבוט באמצעות פרומפט לפני שליחה למשתמש
+                </label>
+                {form.rewriteEnabled && (
+                  <>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <span>פרומפט לעריכה</span>
+                      <textarea
+                        value={form.rewritePrompt}
+                        onChange={e => setForm(f => ({ ...f, rewritePrompt: e.target.value }))}
+                        placeholder="לדוגמה: קצר את התשובה ל-2 משפטים, השתמש בעברית פשוטה ושמור על טון ידידותי."
+                        rows={4}
+                        style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: 13 }}
+                      />
+                    </label>
+                    <label>ספק LLM לעריכה
+                      <select
+                        value={form.rewriteProvider}
+                        onChange={e => setForm(f => ({ ...f, rewriteProvider: e.target.value }))}
+                      >
+                        <option value="">ברירת מחדל (ראשון ברשימה)</option>
+                        {llmProviders.map(p => (
+                          <option key={p._id || p.name} value={p.name}>{p.name} ({p.model})</option>
+                        ))}
+                      </select>
+                    </label>
+                  </>
+                )}
               </div>
             </fieldset>
 
