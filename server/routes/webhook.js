@@ -121,19 +121,23 @@ function looksLikeGreeting(text) {
   const lower = trimmed.toLowerCase();
   const hasGreetingOpener = /^(שלום|היי|הי|בוקר טוב|ערב טוב|hello|hi)[,!.? ]/i.test(trimmed);
   const hasBotName = lower.includes('ניבי') || lower.includes('עוזר הווירטואלי') || lower.includes('עוזרת הווירטואלית') ||
-                     lower.includes('עוזר הדיגיטלי') || lower.includes('העוזר הדיגיטלי');
-  // "נעים להכיר" / "אני ... העוזר" are self-introduction phrases with no substantive content.
+                     lower.includes('עוזר הדיגיטלי') || lower.includes('עוזרת הדיגיטלית');
+  // "נעים להכיר" / "נעים מאוד" are self-introduction phrases with no substantive content.
   const hasSelfIntro = lower.includes('נעים להכיר') || lower.includes('נעים מאוד') ||
                        lower.includes('nice to meet');
-  const hasHelpOffer = lower.includes('אוכל לעזור') || lower.includes('אוכל לסייע') ||
-                       lower.includes('כדי לעזור') || lower.includes('כדי לסייע') ||
-                       lower.includes('כיצד אוכל') || lower.includes('במה אוכל') ||
-                       lower.includes('how can i help') || lower.includes('how may i help');
-  // Strict path: greeting opener + bot self-intro + (help offer OR "nice to meet you") = filler, any length.
-  // A data/answer message never opens with a greeting AND names the bot AND introduces itself.
-  if (hasGreetingOpener && hasBotName && (hasHelpOffer || hasSelfIntro)) return true;
-  // Relaxed path: short reply with greeting opener + generic help offer = no substantive content
-  if (hasGreetingOpener && hasHelpOffer && trimmed.length < 120) return true;
+  // A generic offer/question to help, in ANY grammatical form — masculine/feminine/plural
+  // ("אוכל/יכול/יכולה/נוכל לעזור"), interrogative ("איך/כיצד/במה/מה ... לעזור"), or "כדי/אשמח לעזור".
+  // We only trust it as *filler* when it sits at the END of the reply: a real answer mentions
+  // "לעזור" up front and then continues with content, whereas the greeting template closes with
+  // the offer. Anchoring to the tail keeps data replies from being misclassified as greetings.
+  const endsWithHelpOffer =
+    /(אוכל|נוכל|יכול|יכולה|יכולים|איך|כיצד|במה|מה|כדי|אשמח|נשמח|אפשר)[^.?!]{0,30}(לעזור|לסייע)[^.?!]{0,45}[?.!‏‎]*\s*$/.test(lower) ||
+    /(how (can|may) i (help|assist))[^.?!]*\??\s*$/i.test(lower);
+  // Strict path: greeting opener + bot name + (trailing offer to help OR "nice to meet you") = filler.
+  // A data/answer reply never opens with a greeting, names the bot, AND closes with an offer to help.
+  if (hasGreetingOpener && hasBotName && (endsWithHelpOffer || hasSelfIntro)) return true;
+  // Relaxed path: short reply that is just a greeting + a trailing offer to help, even without the bot name.
+  if (hasGreetingOpener && endsWithHelpOffer && trimmed.length < 120) return true;
   return false;
 }
 
