@@ -155,11 +155,18 @@ async function isGreetingReply(userMessage, botReply, providerName) {
 
   try {
     const settings = await SystemSettings.findOne().lean();
-    const provider = providerName
-      ? settings?.llmProviders?.find(p => p.name === providerName)
-      : settings?.llmProviders?.[0];
-    if (!provider?.baseUrl && !provider?.apiKey) {
-      console.warn(`[GreetingClassifier] DECISION=answer source=no-provider action=ALLOW (provider="${providerName || '(default)'}" not found or has no creds)`);
+    const providers = settings?.llmProviders || [];
+    // Prefer the connector's configured provider, but never give up if its name doesn't match
+    // (e.g. it was renamed/removed) — fall back to the first usable provider so the LLM ALWAYS
+    // runs. Silently returning "answer" on a missing provider is what let greetings through.
+    const named = providerName ? providers.find(p => p.name === providerName) : null;
+    const usable = p => p && (p.baseUrl || p.apiKey);
+    let provider = usable(named) ? named : providers.find(usable);
+    if (providerName && provider && provider.name !== providerName) {
+      console.warn(`[GreetingClassifier] provider "${providerName}" not found/unusable — falling back to "${provider.name}"`);
+    }
+    if (!usable(provider)) {
+      console.warn(`[GreetingClassifier] DECISION=answer source=no-provider action=ALLOW (no usable LLM provider configured; wanted "${providerName || '(default)'}")`);
       return false;
     }
     console.log(`[GreetingClassifier] using provider name="${provider.name}" model="${provider.model || 'gpt-4o'}" baseUrl="${provider.baseUrl || '(default)'}"`);
@@ -176,14 +183,15 @@ async function isGreetingReply(userMessage, botReply, providerName) {
           role: 'system',
           content:
             'You are a binary classifier for chatbot messages. ' +
+            'The user message and bot reply may be written in ANY language (Hebrew, Arabic, English, Russian, etc.), sometimes mixed. Judge by MEANING, not language, and apply the same rules regardless of language. ' +
             'Decide whether the bot reply is FILLER (a greeting, self-introduction, or generic offer-to-help) that contains NO substantive information addressing the user\'s question. ' +
             'Classify as "greeting" if the reply is ANY of the following — even partially — and adds no real content beyond it: ' +
-            '(a) a greeting/salutation ("שלום", "היי", "Hello", "בוקר טוב"); ' +
-            '(b) a self-introduction ("אני ניבי", "I am the virtual assistant"); ' +
-            '(c) a generic offer to help ("כיצד אוכל לסייע?", "במה אוכל לעזור?", "איך אפשר לעזור לך היום?", "How can I help you?", "מה תרצה לדעת?"); ' +
-            '(d) an acknowledgement that asks the user to wait or rephrase without giving info ("רגע אחד", "אני בודק עבורך", "תוכל להבהיר?"). ' +
+            '(a) a greeting/salutation ("שלום", "היי", "Hello", "בוקר טוב", Arabic "أهلاً", "مرحباً", "السلام عليكم"); ' +
+            '(b) a self-introduction ("אני ניבי", "I am the virtual assistant", Arabic "أنا نيفي", "أنا المساعد الرقمي"); ' +
+            '(c) a generic offer to help ("כיצד אוכל לסייע?", "במה אוכל לעזור?", "איך אפשר לעזור לך היום?", "How can I help you?", "מה תרצה לדעת?", Arabic "كيف يمكنني مساعدتك اليوم؟", "هل لديك أي استفسار؟", "أنا هنا لمساعدتك"); ' +
+            '(d) an acknowledgement that asks the user to wait or rephrase without giving info ("רגע אחד", "אני בודק עבורך", "תוכל להבהיר?", Arabic "لحظة من فضلك", "هل يمكنك التوضيح؟"). ' +
             'Classify as "answer" ONLY if the reply contains real substantive content that addresses or partially addresses the user\'s question — facts, instructions, links, data, a specific clarifying question about the topic, etc. ' +
-            'A reply that mixes a greeting with substantive content is "answer". A reply that is purely greeting + offer-to-help with no content is "greeting". ' +
+            'A reply that mixes a greeting with substantive content is "answer". A reply that is purely greeting + self-introduction + offer-to-help with no real content is "greeting" — even if it restates the topic ("I am here to help you with government services") without giving actual information. ' +
             'Respond with ONLY the word "greeting" or "answer". No punctuation, no explanation.',
         },
         {
