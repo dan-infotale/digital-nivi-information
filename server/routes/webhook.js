@@ -120,12 +120,18 @@ function looksLikeGreeting(text) {
   const trimmed = text.trim();
   const lower = trimmed.toLowerCase();
   const hasGreetingOpener = /^(שלום|היי|הי|בוקר טוב|ערב טוב|hello|hi)[,!.? ]/i.test(trimmed);
-  const hasBotName = lower.includes('ניבי') || lower.includes('עוזר הווירטואלי') || lower.includes('עוזרת הווירטואלית');
+  const hasBotName = lower.includes('ניבי') || lower.includes('עוזר הווירטואלי') || lower.includes('עוזרת הווירטואלית') ||
+                     lower.includes('עוזר הדיגיטלי') || lower.includes('העוזר הדיגיטלי');
+  // "נעים להכיר" / "אני ... העוזר" are self-introduction phrases with no substantive content.
+  const hasSelfIntro = lower.includes('נעים להכיר') || lower.includes('נעים מאוד') ||
+                       lower.includes('nice to meet');
   const hasHelpOffer = lower.includes('אוכל לעזור') || lower.includes('אוכל לסייע') ||
+                       lower.includes('כדי לעזור') || lower.includes('כדי לסייע') ||
                        lower.includes('כיצד אוכל') || lower.includes('במה אוכל') ||
                        lower.includes('how can i help') || lower.includes('how may i help');
-  // Strict path: greeting + bot self-intro + help offer (any length)
-  if (hasGreetingOpener && hasBotName && hasHelpOffer) return true;
+  // Strict path: greeting opener + bot self-intro + (help offer OR "nice to meet you") = filler, any length.
+  // A data/answer message never opens with a greeting AND names the bot AND introduces itself.
+  if (hasGreetingOpener && hasBotName && (hasHelpOffer || hasSelfIntro)) return true;
   // Relaxed path: short reply with greeting opener + generic help offer = no substantive content
   if (hasGreetingOpener && hasHelpOffer && trimmed.length < 120) return true;
   return false;
