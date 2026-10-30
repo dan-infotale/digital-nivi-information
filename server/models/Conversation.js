@@ -3,6 +3,8 @@ const mongoose = require('mongoose');
 const messageSchema = new mongoose.Schema({
   direction: { type: String, enum: ['incoming', 'outgoing'], required: true },
   body: { type: String, required: true },
+  // Bot reply as received from the backend, before the connector's LLM rewrite (set only when rewritten)
+  originalBody: String,
   timestamp: { type: Date, default: Date.now },
   whatsappMessageId: String,
 }, { _id: false });

@@ -414,13 +414,15 @@ async function handleMessage(connector, { from, text, messageId }, options = {})
       }
     }
 
+    let originalBody;
     if (connector.rewriteEnabled) {
       const rewrite = await rewriteReply(text, reply, connector.rewritePrompt, connector.rewriteProvider);
+      if (rewrite.rewritten) originalBody = reply;
       reply = rewrite.reply;
       result.rewritten = rewrite.rewritten;
     }
 
-    conversation.messages.push({ direction: 'outgoing', body: reply });
+    conversation.messages.push({ direction: 'outgoing', body: reply, originalBody });
     conversation.lastActivity = new Date();
     await conversation.save();
 

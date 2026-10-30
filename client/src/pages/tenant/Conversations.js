@@ -39,6 +39,7 @@ export default function Conversations() {
   const [filterFrom, setFilterFrom] = useState('');
   const [filterTo, setFilterTo] = useState('');
   const [selected, setSelected] = useState(null);
+  const [showOriginal, setShowOriginal] = useState({});
   const [stats, setStats] = useState({ totalConversations: 0, todayConversations: 0, incomingMessages: 0, outgoingMessages: 0, avgDurationMinutes: 0 });
   const lastMsgRef = useRef(null);
 
@@ -60,6 +61,7 @@ export default function Conversations() {
   async function openConversation(id) {
     const { data } = await api.get(`/conversations/${id}`);
     setSelected(data);
+    setShowOriginal({});
   }
 
   async function deleteConversation(id) {
@@ -174,15 +176,28 @@ export default function Conversations() {
               <div className="thread-messages">
                 {groupByDay(selected.messages, t).map((item, i, arr) => {
                   const isLast = item.type === 'msg' && i === arr.length - 1;
+                  const original = item.type === 'msg' && showOriginal[i];
                   return item.type === 'divider' ? (
                     <div key={i} className="day-divider">{item.label}</div>
                   ) : (
                     <div key={i} ref={isLast ? lastMsgRef : null} className={`msg ${item.msg.direction === 'incoming' ? 'in' : 'out'}`}>
-                      <div className="msg-bubble">
+                      <div className={`msg-bubble ${original ? 'original' : ''}`}>
+                        {original && <div className="msg-original-label">התשובה המקורית מניבי</div>}
                         <div className="msg-text">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.msg.body}</ReactMarkdown>
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{original ? item.msg.originalBody : item.msg.body}</ReactMarkdown>
                         </div>
-                        <span className="msg-time">{formatTime(item.msg.timestamp)}</span>
+                        <div className="msg-footer">
+                          {item.msg.originalBody && (
+                            <button
+                              type="button"
+                              className="msg-original-toggle"
+                              onClick={() => setShowOriginal(s => ({ ...s, [i]: !s[i] }))}
+                            >
+                              {original ? 'הצג תשובה ערוכה' : 'הצג מקור מניבי'}
+                            </button>
+                          )}
+                          <span className="msg-time">{formatTime(item.msg.timestamp)}</span>
+                        </div>
                       </div>
                     </div>
                   );
