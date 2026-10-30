@@ -26,7 +26,10 @@ function cleanForWhatsApp(text) {
   text = text.replace(/~~(.+?)~~/g, '~$1~');
 
   // Links: [text](url) → text\nurl  (match any non-whitespace URL)
-  text = text.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '$1\n$2');
+  // When the text is just the URL itself, emit the URL alone — WhatsApp would otherwise linkify both lines
+  const normUrl = u => u.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/+$/, '');
+  text = text.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, label, url) =>
+    normUrl(label) === normUrl(url) ? url : `${label}\n${url}`);
 
   // Horizontal rules → remove
   text = text.replace(/^[-*_]{3,}$/gm, '');
