@@ -73,36 +73,54 @@ class NiviAdapter {
 
     return new Promise((resolve, reject) => {
       let fullText = '';
+      let partialText = '';
       let buffer = '';
       const decoder = new StringDecoder('utf8');
+
+      const handleLine = (line) => {
+        if (!line.startsWith('data:')) return;
+        const raw = line.slice(5).trim();
+        if (!raw || raw === '[DONE]') return;
+        let data;
+        try {
+          data = JSON.parse(raw);
+        } catch {
+          fullText += raw;
+          return;
+        }
+        if (data.content?.parts) {
+          const t = data.content.parts.map(p => p.text || '').join('');
+          // Events with only function calls/responses carry no text — don't let them wipe the answer.
+          if (!t) return;
+          if (data.partial) {
+            // Streaming chunk: accumulate deltas
+            partialText += t;
+            fullText = partialText;
+          } else {
+            // Final (aggregated) event replaces the streamed chunks
+            fullText = t;
+            partialText = '';
+          }
+        } else if (data.delta?.text) {
+          fullText += data.delta.text;
+        } else if (data.delta?.parts) {
+          fullText += data.delta.parts.map(p => p.text || '').join('');
+        } else if (data.text) {
+          fullText += data.text;
+        }
+      };
 
       response.data.on('data', (chunk) => {
         buffer += decoder.write(chunk);
         const lines = buffer.split('\n');
         buffer = lines.pop();
-        for (const line of lines) {
-          if (!line.startsWith('data:')) continue;
-          const raw = line.slice(5).trim();
-          if (!raw || raw === '[DONE]') continue;
-          try {
-            const data = JSON.parse(raw);
-            if (data.content?.parts) {
-              fullText = data.content.parts.map(p => p.text || '').join('');
-            } else if (data.delta?.text) {
-              fullText += data.delta.text;
-            } else if (data.delta?.parts) {
-              fullText += data.delta.parts.map(p => p.text || '').join('');
-            } else if (data.text) {
-              fullText += data.text;
-            }
-          } catch {
-            if (raw !== '[DONE]') fullText += raw;
-          }
-        }
+        for (const line of lines) handleLine(line.replace(/\r$/, ''));
       });
 
       response.data.on('end', () => {
         buffer += decoder.end(); // flush any remaining bytes
+        // Last event may arrive without a trailing newline — process it too
+        for (const line of buffer.split('\n')) handleLine(line.replace(/\r$/, ''));
         resolve(fullText || 'לא התקבלה תשובה מהמערכת.');
       });
 

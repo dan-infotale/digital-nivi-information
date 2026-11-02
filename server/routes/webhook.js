@@ -141,7 +141,15 @@ function looksLikeGreeting(text) {
   return false;
 }
 
-async function isGreetingReply(userMessage, botReply, providerName) {
+// User's first message is clearly a real question → no need for the (slow) LLM classifier
+function looksLikeQuestion(text) {
+  if (!text) return false;
+  const t = text.trim();
+  if (/[?؟]/.test(t)) return true;
+  return /^(מה|מהו|מהי|מהם|איך|כיצד|מתי|איפה|היכן|למה|מדוע|האם|כמה|מי|איזה|איזו|אילו|אפשר|ניתן|רציתי|אני רוצה|אני צריך|אני צריכה|how|what|when|where|why|who|which|can|could|is|are|do|does|i want|i need)(\s|$)/i.test(t);
+}
+
+async function isGreetingReply(userMessage, botReply, providerName, { heuristicOnly = false } = {}) {
   const userSnip = (userMessage || '').slice(0, 120);
   const replySnip = (botReply || '').slice(0, 200);
   console.log(`[GreetingClassifier] INPUT user="${userSnip}" reply="${replySnip}" provider="${providerName || '(default)'}"`);
@@ -150,6 +158,10 @@ async function isGreetingReply(userMessage, botReply, providerName) {
   if (looksLikeGreeting(botReply)) {
     console.log(`[GreetingClassifier] DECISION=greeting source=heuristic action=SUPPRESS`);
     return true;
+  }
+  if (heuristicOnly) {
+    console.log(`[GreetingClassifier] DECISION=answer source=heuristic-only action=ALLOW (user message is a question)`);
+    return false;
   }
   console.log(`[GreetingClassifier] heuristic=no-match, falling back to LLM`);
 
@@ -256,8 +268,12 @@ async function rewriteReply(userMessage, botReply, prompt, providerName) {
         { role: 'user', content: `User message:\n${userMessage}\n\nBot reply:\n${botReply}\n\nRewrite the bot reply per the instructions. Respond with ONLY the rewritten reply text — no preamble, no quotes.` },
       ],
       temperature: 0.3,
-      max_tokens: 1024,
+      max_tokens: 4096,
     });
+    if (result.choices[0]?.finish_reason === 'length') {
+      console.warn('[Rewriter] rewrite hit max_tokens (truncated) — returning original reply');
+      return { reply: botReply, rewritten: false };
+    }
     const edited = stripReasoning(result.choices[0]?.message?.content || '').trim();
     if (!edited) {
       console.warn('[Rewriter] empty rewrite — returning original reply');
@@ -292,15 +308,45 @@ async function createNewConversation(connector, bot, from) {
   return conv;
 }
 
-async function handleMessage(connector, { from, text, messageId }, options = {}) {
-  const { testMode = false } = options;
+// WhatsApp hides the typing indicator after ~25s or as soon as we send a message.
+// Keep it alive while we're still working on a reply.
+const TYPING_REFRESH_MS = 20000;
+
+function createTypingKeepAlive(meta, messageId, from) {
+  let timer = null;
+  const ping = () => sendTypingIndicator(meta, messageId).catch(err =>
+    console.warn(`[Webhook] Typing indicator failed for ${from}: ${err.message}`)
+  );
+  const stop = () => { if (timer) clearInterval(timer); timer = null; };
+  const start = () => { stop(); ping(); timer = setInterval(ping, TYPING_REFRESH_MS); };
+  return { start, stop };
+}
+
+async function handleMessage(connector, msg, options = {}) {
+  const typing = options.testMode
+    ? { start() {}, stop() {} }
+    : createTypingKeepAlive(connector.metaConnectionId, msg.messageId, msg.from);
+  // Re-show dots when we start (a previous queued reply may have cleared them)
+  typing.start();
+  try {
+    return await processMessage(connector, msg, { ...options, typing });
+  } finally {
+    typing.stop();
+  }
+}
+
+async function processMessage(connector, { from, text, messageId }, options = {}) {
+  const { testMode = false, typing } = options;
   const meta = connector.metaConnectionId;
   const bot = connector.botBackendId;
   const result = { outbound: [], suppressed: false, classifier: null, status: 'ok' };
 
-  const deliver = async (body) => {
+  // more=true → another message is still coming, so bring the typing dots back after sending
+  const deliver = async (body, { more = false } = {}) => {
     result.outbound.push(body);
+    typing.stop();
     if (!testMode) await sendMessage(meta, from, body);
+    if (more) typing.start();
   };
 
   // Only match active conversations — closed ones stay as historical records
@@ -369,18 +415,21 @@ async function handleMessage(connector, { from, text, messageId }, options = {})
   conversation.lastActivity = new Date();
   await conversation.save();
 
+  const adapter = await createAdapter(bot);
+
+  // Start session init for new conversations in parallel with sending the welcome message
+  const initPromise = isNew && bot.type === 'nivi' ? adapter.initialize(conversation) : null;
+  if (initPromise) initPromise.catch(() => {}); // handled below; avoid unhandled-rejection while welcome sends
+
   if (isNew && connector.welcomeMessage) {
     conversation.messages.push({ direction: 'outgoing', body: connector.welcomeMessage });
     await conversation.save();
-    await deliver(connector.welcomeMessage);
+    await deliver(connector.welcomeMessage, { more: true });
   }
 
-  const adapter = await createAdapter(bot);
-
-  // Initialize session for new conversations that need it
-  if (isNew && bot.type === 'nivi') {
+  if (initPromise) {
     try {
-      await adapter.initialize(conversation);
+      await initPromise;
     } catch (err) {
       console.error(`[Webhook] Session init failed for ${from}:`, err.message);
       await sendErrorVia(deliver, conversation, 'מצטערים, לא הצלחנו ליצור חיבור למערכת. אנא נסה שוב.');
@@ -404,7 +453,7 @@ async function handleMessage(connector, { from, text, messageId }, options = {})
       console.log(`[GreetingClassifier] SKIPPED for ${from}: isNew=${isNew} suppressBotGreeting=${!!connector.suppressBotGreeting} hasWelcomeMessage=${!!connector.welcomeMessage}`);
       result.classifier = { ran: false, reason: 'skipped', isNew, suppressBotGreeting: !!connector.suppressBotGreeting, hasWelcomeMessage: !!connector.welcomeMessage };
     } else {
-      const isGreeting = await isGreetingReply(text, reply, connector.greetingClassifierProvider);
+      const isGreeting = await isGreetingReply(text, reply, connector.greetingClassifierProvider, { heuristicOnly: looksLikeQuestion(text) });
       result.classifier = { ran: true, decision: isGreeting ? 'greeting' : 'answer' };
       if (isGreeting) {
         console.log(`[Webhook] Suppressed bot greeting for ${from} (suppressBotGreeting enabled)`);
