@@ -312,13 +312,33 @@ async function createNewConversation(connector, bot, from) {
 // Keep it alive while we're still working on a reply.
 const TYPING_REFRESH_MS = 20000;
 
+// After we send a message, Meta's API returns before the message reaches the phone.
+// A typing ping sent immediately can land BEFORE the message, and the message's arrival
+// then clears the dots. So after a mid-flow message, re-ping a few times with a delay.
+const TYPING_AFTER_SEND_DELAYS_MS = [2000, 5000];
+
 function createTypingKeepAlive(meta, messageId, from) {
-  let timer = null;
-  const ping = () => sendTypingIndicator(meta, messageId).catch(err =>
-    console.warn(`[Webhook] Typing indicator failed for ${from}: ${err.message}`)
-  );
-  const stop = () => { if (timer) clearInterval(timer); timer = null; };
-  const start = () => { stop(); ping(); timer = setInterval(ping, TYPING_REFRESH_MS); };
+  let interval = null;
+  let timeouts = [];
+  const ping = (reason) => sendTypingIndicator(meta, messageId)
+    .then(() => console.log(`[Typing] ping ok for ${from} (${reason})`))
+    .catch(err => console.warn(`[Typing] ping failed for ${from} (${reason}): ${err.response?.data ? JSON.stringify(err.response.data) : err.message}`));
+  const stop = () => {
+    if (interval) clearInterval(interval);
+    interval = null;
+    timeouts.forEach(clearTimeout);
+    timeouts = [];
+  };
+  // afterSend=true → we just sent a message; wait for it to reach the phone before re-showing dots
+  const start = ({ afterSend = false } = {}) => {
+    stop();
+    if (afterSend) {
+      timeouts = TYPING_AFTER_SEND_DELAYS_MS.map(ms => setTimeout(() => ping(`after-send +${ms}ms`), ms));
+    } else {
+      ping('start');
+    }
+    interval = setInterval(() => ping('refresh'), TYPING_REFRESH_MS);
+  };
   return { start, stop };
 }
 
@@ -346,7 +366,7 @@ async function processMessage(connector, { from, text, messageId }, options = {}
     result.outbound.push(body);
     typing.stop();
     if (!testMode) await sendMessage(meta, from, body);
-    if (more) typing.start();
+    if (more) typing.start({ afterSend: true });
   };
 
   // Only match active conversations — closed ones stay as historical records
