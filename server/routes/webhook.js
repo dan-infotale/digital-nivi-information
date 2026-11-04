@@ -144,8 +144,12 @@ function looksLikeGreeting(text) {
 // User's first message is clearly a real question → no need for the (slow) LLM classifier
 function looksLikeQuestion(text) {
   if (!text) return false;
-  const t = text.trim();
-  if (/[?؟]/.test(t)) return true;
+  if (/[?؟]/.test(text)) return true;
+  // Users often open with a greeting ("היי, אני צריך...") — strip it before checking the opener
+  const t = text.trim()
+    .replace(/^(שלום|היי|הי|הלו|בוקר טוב|ערב טוב|צהריים טובים|hello|hey|hi)(\s+(ניבי|nivi))?[\s,!.:\-]*/i, '')
+    .trim();
+  if (t.length > 40) return true; // a long first message is a real request, not small talk
   return /^(מה|מהו|מהי|מהם|איך|כיצד|מתי|איפה|היכן|למה|מדוע|האם|כמה|מי|איזה|איזו|אילו|אפשר|ניתן|רציתי|אני רוצה|אני צריך|אני צריכה|how|what|when|where|why|who|which|can|could|is|are|do|does|i want|i need)(\s|$)/i.test(t);
 }
 
@@ -435,35 +439,49 @@ async function processMessage(connector, { from, text, messageId }, options = {}
   conversation.lastActivity = new Date();
   await conversation.save();
 
+  const t0 = Date.now();
+  const elapsed = () => `${Date.now() - t0}ms`;
   const adapter = await createAdapter(bot);
 
-  // Start session init for new conversations in parallel with sending the welcome message
+  // Start session init → bot query right away, in parallel with sending the welcome message,
+  // so the bot is already working while the welcome goes out.
   const initPromise = isNew && bot.type === 'nivi' ? adapter.initialize(conversation) : null;
-  if (initPromise) initPromise.catch(() => {}); // handled below; avoid unhandled-rejection while welcome sends
+  let initFailed = false;
+  const replyPromise = (async () => {
+    if (initPromise) {
+      try {
+        await initPromise;
+      } catch (err) {
+        initFailed = true;
+        throw err;
+      }
+      console.log(`[Timing] ${from} session init done at ${elapsed()}`);
+    }
+    const r = bot.type === 'custom_agent'
+      ? await adapter.sendMessage(conversation, text, bot.knowledgeBaseId)
+      : await adapter.sendMessage(conversation, text);
+    console.log(`[Timing] ${from} bot reply received at ${elapsed()} (isNew=${isNew})`);
+    return r;
+  })();
+  replyPromise.catch(() => {}); // handled below; avoid unhandled-rejection while welcome sends
 
   if (isNew && connector.welcomeMessage) {
     conversation.messages.push({ direction: 'outgoing', body: connector.welcomeMessage });
     await conversation.save();
     await deliver(connector.welcomeMessage, { more: true });
-  }
-
-  if (initPromise) {
-    try {
-      await initPromise;
-    } catch (err) {
-      console.error(`[Webhook] Session init failed for ${from}:`, err.message);
-      await sendErrorVia(deliver, conversation, 'מצטערים, לא הצלחנו ליצור חיבור למערכת. אנא נסה שוב.');
-      result.status = 'session_init_failed';
-      return result;
-    }
+    console.log(`[Timing] ${from} welcome sent at ${elapsed()}`);
   }
 
   try {
     let reply;
-    if (bot.type === 'custom_agent') {
-      reply = await adapter.sendMessage(conversation, text, bot.knowledgeBaseId);
-    } else {
-      reply = await adapter.sendMessage(conversation, text);
+    try {
+      reply = await replyPromise;
+    } catch (err) {
+      if (!initFailed) throw err;
+      console.error(`[Webhook] Session init failed for ${from}:`, err.message);
+      await sendErrorVia(deliver, conversation, 'מצטערים, לא הצלחנו ליצור חיבור למערכת. אנא נסה שוב.');
+      result.status = 'session_init_failed';
+      return result;
     }
     result.botReply = reply;
 
@@ -474,6 +492,7 @@ async function processMessage(connector, { from, text, messageId }, options = {}
       result.classifier = { ran: false, reason: 'skipped', isNew, suppressBotGreeting: !!connector.suppressBotGreeting, hasWelcomeMessage: !!connector.welcomeMessage };
     } else {
       const isGreeting = await isGreetingReply(text, reply, connector.greetingClassifierProvider, { heuristicOnly: looksLikeQuestion(text) });
+      console.log(`[Timing] ${from} greeting classifier done at ${elapsed()}`);
       result.classifier = { ran: true, decision: isGreeting ? 'greeting' : 'answer' };
       if (isGreeting) {
         console.log(`[Webhook] Suppressed bot greeting for ${from} (suppressBotGreeting enabled)`);
@@ -489,6 +508,7 @@ async function processMessage(connector, { from, text, messageId }, options = {}
       if (rewrite.rewritten) originalBody = reply;
       reply = rewrite.reply;
       result.rewritten = rewrite.rewritten;
+      console.log(`[Timing] ${from} rewrite done at ${elapsed()}`);
     }
 
     conversation.messages.push({ direction: 'outgoing', body: reply, originalBody });
@@ -496,6 +516,7 @@ async function processMessage(connector, { from, text, messageId }, options = {}
     await conversation.save();
 
     await deliver(reply);
+    console.log(`[Timing] ${from} reply delivered at ${elapsed()} (isNew=${isNew})`);
     result.botReply = reply;
     return result;
   } catch (err) {
