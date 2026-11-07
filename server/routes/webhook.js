@@ -446,10 +446,13 @@ async function processMessage(connector, { from, text, messageId }, options = {}
       }
       console.log(`[Timing] ${from} session init done at ${elapsed()}`);
     }
+    const botName = bot.type === 'nivi' ? 'Nivi' : 'bot';
+    const sentAt = Date.now();
+    console.log(`[Timing] ${from} question sent to ${botName} at ${elapsed()}`);
     const r = bot.type === 'custom_agent'
       ? await adapter.sendMessage(conversation, text, bot.knowledgeBaseId)
       : await adapter.sendMessage(conversation, text);
-    console.log(`[Timing] ${from} bot reply received at ${elapsed()} (isNew=${isNew})`);
+    console.log(`[Timing] ${from} answer received from ${botName} at ${elapsed()} — ${botName} took ${Date.now() - sentAt}ms (isNew=${isNew})`);
     return r;
   })();
   replyPromise.catch(() => {}); // handled below; avoid unhandled-rejection while welcome sends
