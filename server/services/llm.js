@@ -8,7 +8,7 @@
 
 const OpenAI = require('openai');
 
-// `${baseUrl}|${model}` → { useMaxCompletionTokens, dropTemperature, dropReasoningEffort }
+// `${baseUrl}|${model}` → { useMaxCompletionTokens, dropTemperature, effortIdx, dropReasoningEffort }
 const learned = new Map();
 
 // Users often paste the full endpoint they see in the portal — strip the operation path.
@@ -36,25 +36,38 @@ function applyLearned(params, l, reasoningEffort) {
     delete p.max_tokens;
   }
   if (l.dropTemperature) delete p.temperature;
-  // Reasoning models spend completion tokens on thinking — keep it short when the caller asks
-  if (l.useMaxCompletionTokens && reasoningEffort && !l.dropReasoningEffort) {
-    p.reasoning_effort = reasoningEffort;
-  }
+  // Always ask for the lowest reasoning the model accepts (faster replies). Models differ in
+  // which values they accept, so we fall through the list as values get rejected; models
+  // without reasoning reject the parameter entirely and we stop sending it.
+  const effort = effortCandidates(reasoningEffort)[l.effortIdx || 0];
+  if (effort && !l.dropReasoningEffort) p.reasoning_effort = effort;
   return p;
 }
 
+// Lowest first: 'none' (GPT-5.1+), 'minimal' (GPT-5), 'low' (o-series, gpt-oss, most others)
+const LOWEST_REASONING = ['none', 'minimal', 'low'];
+const effortCandidates = e => (Array.isArray(e) ? e : e ? [e] : []);
+
 // Which parameter did the provider reject? Returns 'max_tokens' | 'temperature' | 'reasoning_effort' | null
+// The parameter itself isn't recognised (vs. just this value being invalid)
+function paramUnknown(err) {
+  const msg = `${err.message || ''} ${err.error?.message || ''}`.toLowerCase();
+  if (/value/.test(msg)) return false;
+  return /unrecognized|unsupported parameter|unknown (parameter|field|argument)|extra inputs|not permitted|not allowed/.test(msg);
+}
+
 function rejectedParam(err) {
-  if ((err.status || err.response?.status) !== 400) return null;
+  const status = err.status || err.response?.status;
+  if (status !== 400 && status !== 422) return null;
   const param = err.param || err.error?.param;
   const msg = `${err.message || ''} ${err.error?.message || ''}`.toLowerCase();
-  for (const name of ['max_tokens', 'temperature', 'reasoning_effort']) {
+  for (const name of ['reasoning_effort', 'max_tokens', 'temperature']) {
     if (param === name) return name;
   }
-  if (/unsupported|not supported|does not support|unrecognized|unknown/.test(msg)) {
+  if (/unsupported|not supported|does not support|unrecognized|unknown|invalid|not allowed|not permitted|extra inputs/.test(msg)) {
+    if (msg.includes('reasoning_effort') || msg.includes('reasoning effort')) return 'reasoning_effort';
     if (msg.includes("'max_tokens'") || msg.includes('max_completion_tokens')) return 'max_tokens';
     if (msg.includes('temperature')) return 'temperature';
-    if (msg.includes('reasoning_effort')) return 'reasoning_effort';
   }
   return null;
 }
@@ -146,17 +159,17 @@ async function bedrockChatCompletion(provider, params) {
  * models) and AWS Bedrock. Always returns the OpenAI response shape.
  * @param provider  { type?, baseUrl, apiKey, model, region?, awsAccessKeyId?, awsSecretAccessKey? }
  * @param params    standard chat.completions params (model defaults to provider.model)
- * @param options   { client, reasoningEffort } — reasoningEffort is only sent to models that
- *                  turned out to need max_completion_tokens (i.e. reasoning models)
+ * @param options   { client, reasoningEffort } — reasoningEffort defaults to the lowest the model
+ *                  accepts; models without reasoning stop receiving it after one rejection
  */
-async function chatCompletion(provider, params, { client, reasoningEffort } = {}) {
+async function chatCompletion(provider, params, { client, reasoningEffort = LOWEST_REASONING } = {}) {
   if (isBedrock(provider)) return bedrockChatCompletion(provider, params);
   const c = client || createClient(provider);
   const model = params.model || provider.model || 'gpt-4o';
   const key = `${normalizeBaseUrl(provider.baseUrl) || 'openai'}|${model}`;
   const l = learned.get(key) || {};
 
-  for (let attempt = 0; attempt < 4; attempt++) {
+  for (let attempt = 0; attempt < 8; attempt++) {
     try {
       return await c.chat.completions.create(applyLearned({ ...params, model }, l, reasoningEffort));
     } catch (err) {
@@ -164,7 +177,13 @@ async function chatCompletion(provider, params, { client, reasoningEffort } = {}
       let changed = false;
       if (bad === 'max_tokens' && !l.useMaxCompletionTokens) changed = l.useMaxCompletionTokens = true;
       else if (bad === 'temperature' && !l.dropTemperature) changed = l.dropTemperature = true;
-      else if (bad === 'reasoning_effort' && !l.dropReasoningEffort) changed = l.dropReasoningEffort = true;
+      else if (bad === 'reasoning_effort' && !l.dropReasoningEffort) {
+        // Model has no reasoning at all → stop sending it. Otherwise only this value was
+        // rejected → try the next one; give up on the parameter when the list runs out.
+        l.effortIdx = (l.effortIdx || 0) + 1;
+        if (paramUnknown(err) || l.effortIdx >= effortCandidates(reasoningEffort).length) l.dropReasoningEffort = true;
+        changed = true;
+      }
       if (!changed) throw err;
       learned.set(key, l);
       console.warn(`[LLM] ${model}: provider rejected "${bad}" — adapting and retrying (${JSON.stringify(l)})`);

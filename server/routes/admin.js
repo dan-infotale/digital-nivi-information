@@ -233,7 +233,7 @@ router.post('/settings/test-llm', async (req, res) => {
     const response = await chatCompletion(provider, {
       messages: [{ role: 'user', content: 'ping' }],
       max_tokens: 64,
-    }, { reasoningEffort: 'low' });
+    });
     const reply = response.choices[0]?.message?.content || 'ok';
     return res.json({ ok: true, message: `Model responded: "${reply}"` });
   } catch (err) {

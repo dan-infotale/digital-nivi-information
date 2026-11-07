@@ -211,7 +211,7 @@ async function isGreetingReply(userMessage, botReply, providerName, { heuristicO
       ],
       temperature: 0,
       max_tokens: 512,
-    }, { reasoningEffort: 'low' });
+    });
 
     const msg = result.choices[0]?.message;
     const raw = (msg?.content || '').trim().toLowerCase();
@@ -262,7 +262,7 @@ async function rewriteReply(userMessage, botReply, prompt, providerName) {
       ],
       temperature: 0.3,
       max_tokens: 4096,
-    }, { reasoningEffort: 'low' });
+    });
     if (result.choices[0]?.finish_reason === 'length') {
       console.warn('[Rewriter] rewrite hit max_tokens (truncated) — returning original reply');
       return { reply: botReply, rewritten: false };
