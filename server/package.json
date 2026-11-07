@@ -6,6 +6,7 @@
     "start": "node index.js"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.1164.0",
     "@azure/msal-node": "^2.16.2",
     "axios": "^1.7.2",
     "bcryptjs": "^2.4.3",

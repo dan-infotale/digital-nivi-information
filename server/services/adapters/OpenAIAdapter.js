@@ -1,4 +1,4 @@
-const OpenAI = require('openai');
+const { createClient, chatCompletion } = require('../llm');
 const KnowledgeBase = require('../../models/KnowledgeBase');
 const SystemSettings = require('../../models/SystemSettings');
 const { embedTexts, retrieveTopK } = require('../rag');
@@ -7,10 +7,7 @@ class OpenAIAdapter {
   constructor(botConfig, provider) {
     this.config = botConfig;
     this.provider = provider;
-    this.client = new OpenAI({
-      baseURL: provider.baseUrl || undefined,
-      apiKey: provider.apiKey || 'no-key',
-    });
+    this.client = createClient(provider);
   }
 
   async initialize() {}
@@ -45,11 +42,10 @@ class OpenAIAdapter {
       { role: 'user', content: text },
     ];
 
-    const response = await this.client.chat.completions.create({
-      model: this.provider.model || 'gpt-4o',
+    const response = await chatCompletion(this.provider, {
       messages,
       temperature: this.config.temperature ?? 0.7,
-    });
+    }, { client: this.client });
 
     const reply = response.choices[0]?.message?.content || 'לא התקבלה תשובה.';
 

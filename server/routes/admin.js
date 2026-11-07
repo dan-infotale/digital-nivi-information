@@ -172,9 +172,13 @@ function scrubSettings(s) {
     llmProviders: (s?.llmProviders || []).map(p => ({
       _id: p._id,
       name: p.name,
+      type: p.type || 'openai',
       baseUrl: p.baseUrl || '',
       model: p.model || '',
       apiKey: p.apiKey ? '***' : '',
+      region: p.region || '',
+      awsAccessKeyId: p.awsAccessKeyId || '',
+      awsSecretAccessKey: p.awsSecretAccessKey ? '***' : '',
     })),
   };
 }
@@ -200,12 +204,14 @@ router.put('/settings', async (req, res) => {
   }
 
   if (llmProviders !== undefined) {
+    // Secrets come back masked as '***' — keep the stored value in that case
     update.llmProviders = llmProviders.map(p => {
-      if (p.apiKey === '***') {
-        const ep = existing?.llmProviders?.find(x => x._id?.toString() === String(p._id));
-        return { ...p, apiKey: ep?.apiKey || '' };
+      const ep = existing?.llmProviders?.find(x => x._id?.toString() === String(p._id));
+      const out = { ...p };
+      for (const secret of ['apiKey', 'awsSecretAccessKey']) {
+        if (out[secret] === '***') out[secret] = ep?.[secret] || '';
       }
-      return p;
+      return out;
     });
   }
 
@@ -222,13 +228,12 @@ router.post('/settings/test-llm', async (req, res) => {
   if (!provider) return res.json({ ok: false, error: 'Provider not found' });
 
   try {
-    const OpenAI = require('openai');
-    const client = new OpenAI({ baseURL: provider.baseUrl || undefined, apiKey: provider.apiKey || 'no-key' });
-    const response = await client.chat.completions.create({
-      model: provider.model || 'gpt-4o',
+    const { chatCompletion } = require('../services/llm');
+    // Room for reasoning models, which spend part of the budget thinking before replying
+    const response = await chatCompletion(provider, {
       messages: [{ role: 'user', content: 'ping' }],
-      max_tokens: 5,
-    });
+      max_tokens: 64,
+    }, { reasoningEffort: 'low' });
     const reply = response.choices[0]?.message?.content || 'ok';
     return res.json({ ok: true, message: `Model responded: "${reply}"` });
   } catch (err) {

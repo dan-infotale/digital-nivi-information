@@ -5,7 +5,10 @@ import Icon from '../../components/Icons';
 import api from '../../api';
 import { useLanguage } from '../../context/LanguageContext';
 
-const EMPTY_PROVIDER = { name: '', baseUrl: '', apiKey: '', model: 'gpt-4o' };
+const EMPTY_PROVIDER = {
+  name: '', type: 'openai', baseUrl: '', apiKey: '', model: 'gpt-4o',
+  region: '', awsAccessKeyId: '', awsSecretAccessKey: '',
+};
 
 export default function SystemSettings() {
   const { t } = useLanguage();
@@ -52,7 +55,8 @@ export default function SystemSettings() {
   }
 
   function openEditProvider(index) {
-    setProviderForm({ ...settings.llmProviders[index] });
+    // Providers saved before the Type field existed are OpenAI-compatible
+    setProviderForm({ ...EMPTY_PROVIDER, ...settings.llmProviders[index], type: settings.llmProviders[index].type || 'openai' });
     setProviderModal({ mode: 'edit', index });
   }
 
@@ -151,9 +155,13 @@ export default function SystemSettings() {
                 return (
                   <tr key={i}>
                     <td>{p.name}</td>
-                    <td><code style={{ fontSize: 11 }}>{p.baseUrl || '—'}</code></td>
+                    <td><code style={{ fontSize: 11 }}>{p.type === 'bedrock' ? `AWS Bedrock (${p.region || 'no region'})` : (p.baseUrl || '—')}</code></td>
                     <td><code style={{ fontSize: 11 }}>{p.model || '—'}</code></td>
-                    <td>{p.apiKey ? '●●●●●●' : <span style={{ color: 'var(--fg-4)' }}>not set</span>}</td>
+                    <td>{
+                      p.type === 'bedrock'
+                        ? (p.awsAccessKeyId ? 'AWS access key' : p.apiKey ? 'Bedrock API key' : <span style={{ color: 'var(--fg-4)' }}>server AWS credentials</span>)
+                        : (p.apiKey ? '●●●●●●' : <span style={{ color: 'var(--fg-4)' }}>not set</span>)
+                    }</td>
                     <td className="actions">
                       <button type="button" onClick={() => testProvider(p._id)} disabled={pending}>
                         {pending ? 'Testing…' : 'Test'}
@@ -190,17 +198,49 @@ export default function SystemSettings() {
         >
           <div className="form-grid">
             <label>{t('name')}
-              <input {...pf('name')} placeholder="e.g. OpenAI, Azure OpenAI, Ollama" required />
+              <input {...pf('name')} placeholder="e.g. OpenAI, Azure Foundry, Bedrock Claude" required />
             </label>
-            <label>{t('base_url')}
-              <input {...pf('baseUrl')} placeholder="https://api.openai.com/v1" />
+            <label>Type
+              <select {...pf('type')}>
+                <option value="openai">OpenAI-compatible (OpenAI, Azure AI Foundry, OpenRouter, Ollama…)</option>
+                <option value="bedrock">AWS Bedrock</option>
+              </select>
             </label>
-            <label>{t('api_key')}
-              <input type="password" {...pf('apiKey')} placeholder="sk-..." />
-            </label>
-            <label>Default {t('model')}
-              <input {...pf('model')} placeholder="gpt-4o" />
-            </label>
+            {providerForm.type === 'bedrock' ? (
+              <>
+                <label>Region
+                  <input {...pf('region')} placeholder="us-east-1" required />
+                </label>
+                <label>Model ID / inference profile
+                  <input {...pf('model')} placeholder="us.anthropic.claude-sonnet-4-5-20250929-v1:0" />
+                </label>
+                <div style={{ fontSize: 12, color: 'var(--fg-3)' }}>
+                  Credentials: fill in an AWS access key pair, <b>or</b> a Bedrock API key,
+                  or leave all empty to use the server's own AWS credentials (env vars / IAM role).
+                </div>
+                <label>AWS access key ID
+                  <input {...pf('awsAccessKeyId')} placeholder="AKIA..." autoComplete="off" />
+                </label>
+                <label>AWS secret access key
+                  <input type="password" {...pf('awsSecretAccessKey')} autoComplete="new-password" />
+                </label>
+                <label>Bedrock API key
+                  <input type="password" {...pf('apiKey')} autoComplete="new-password" />
+                </label>
+              </>
+            ) : (
+              <>
+                <label>{t('base_url')}
+                  <input {...pf('baseUrl')} placeholder="https://api.openai.com/v1 or https://<resource>.services.ai.azure.com/openai/v1" />
+                </label>
+                <label>{t('api_key')}
+                  <input type="password" {...pf('apiKey')} placeholder="sk-..." />
+                </label>
+                <label>Default {t('model')}
+                  <input {...pf('model')} placeholder="gpt-4o (Azure: your deployment name)" />
+                </label>
+              </>
+            )}
             <div className="form-actions">
               <button type="button" className="btn-secondary" onClick={() => setProviderModal(null)}>{t('cancel')}</button>
               <button type="button" className="btn-primary" onClick={saveProvider}>

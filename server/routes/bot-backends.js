@@ -79,17 +79,16 @@ router.post('/:id/test', async (req, res) => {
   }
 
   if (item.type === 'custom_agent') {
-    const OpenAI = require('openai');
+    const { chatCompletion } = require('../services/llm');
     const settings = await SystemSettings.findOne().lean();
     const provider = settings?.llmProviders?.find(p => p._id.toString() === item.config?.providerId?.toString());
     if (!provider) return res.json({ ok: false, error: 'LLM provider not found' });
     try {
-      const client = new OpenAI({ baseURL: provider.baseUrl || undefined, apiKey: provider.apiKey || 'no-key' });
-      const response = await client.chat.completions.create({
-        model: provider.model || 'gpt-4o',
+      // Room for reasoning models, which spend part of the budget thinking before replying
+      const response = await chatCompletion(provider, {
         messages: [{ role: 'user', content: 'ping' }],
-        max_tokens: 5,
-      });
+        max_tokens: 64,
+      }, { reasoningEffort: 'low' });
       const reply = response.choices[0]?.message?.content || 'ok';
       return res.json({ ok: true, name: `Model responded: "${reply}"` });
     } catch (err) {
