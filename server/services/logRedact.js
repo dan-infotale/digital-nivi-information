@@ -11,7 +11,7 @@
 
 const util = require('util');
 
-const enabled = /^(1|true|yes|on)$/i.test(String(process.env.LOG_REDACT || '').trim());
+const enabled = /^(1|true|yes|on)$/i.test(String(process.env.LOG_REDACT || '').trim().replace(/^["']|["']$/g, ''));
 
 const PHONE_RE = /(?<![\w.-])\+?\d{10,15}(?![\w-])/g;
 const knownNames = new Set();
