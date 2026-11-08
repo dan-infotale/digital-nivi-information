@@ -73,6 +73,14 @@ function rejectedParam(err) {
   return null;
 }
 
+// Known reasoning-model names (GPT-5 family, o1/o3/o4) — start with the right parameters so the
+// first call doesn't need a rejected round trip. Custom Azure deployment names fall back to
+// learning from the first rejection.
+const REASONING_MODEL_RE = /(^|[\/:])(gpt-5|o[134])([-.:_]|$)/i;
+const guessFromName = model => (REASONING_MODEL_RE.test(model)
+  ? { useMaxCompletionTokens: true, dropTemperature: true }
+  : {});
+
 // ── AWS Bedrock (Converse API — works with every Bedrock chat model) ──────────────────────
 //
 // Auth, first match wins:
@@ -168,7 +176,7 @@ async function chatCompletion(provider, params, { client, reasoningEffort = LOWE
   const c = client || createClient(provider);
   const model = params.model || provider.model || 'gpt-4o';
   const key = `${normalizeBaseUrl(provider.baseUrl) || 'openai'}|${model}`;
-  const l = learned.get(key) || {};
+  const l = learned.get(key) || guessFromName(model);
 
   for (let attempt = 0; attempt < 8; attempt++) {
     try {
