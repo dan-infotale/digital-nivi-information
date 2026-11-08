@@ -34,14 +34,19 @@ function scrub(line) {
   return out;
 }
 
+// Wraps console: prefixes the per-message context tag (always) and scrubs (when enabled)
 function install() {
-  if (!enabled || console.__redactInstalled) return;
+  if (console.__logWrapInstalled) return;
+  const { prefix } = require('./logContext');
   for (const method of ['log', 'info', 'warn', 'error', 'debug']) {
     const original = console[method].bind(console);
-    console[method] = (...args) => original(scrub(util.format(...args)));
+    console[method] = (...args) => {
+      const line = prefix() + util.format(...args);
+      original(enabled ? scrub(line) : line);
+    };
   }
-  console.__redactInstalled = true;
-  console.log('[Log] redaction ON (LOG_REDACT) — phone numbers, message text and model/provider names are hidden');
+  console.__logWrapInstalled = true;
+  if (enabled) console.log('[Log] redaction ON (LOG_REDACT) — phone numbers, message text and model/provider names are hidden');
 }
 
 module.exports = { enabled, install, text, model };

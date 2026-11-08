@@ -167,6 +167,9 @@ export default function Conversations() {
                 <div>
                   <div className="thread-phone">{formatDateTime(selected.createdAt || selected.lastActivity)}</div>
                   {selected.connectorId?.name && <div className="thread-connector">{selected.connectorId.name}</div>}
+                  <div className="thread-connector" title="Search the server log for conv:<id>" style={{ fontFamily: 'monospace', userSelect: 'all' }}>
+                    conv:{String(selected._id).slice(-8)}
+                  </div>
                 </div>
                 <button className="btn-danger" onClick={() => deleteConversation(selected._id)}>
                   <Icon name="trash" size={13} style={{ marginInlineEnd: 4 }} />

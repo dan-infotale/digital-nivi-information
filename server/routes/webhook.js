@@ -1,6 +1,7 @@
 const express = require('express');
 const { chatCompletion, isUsableProvider } = require('../services/llm');
 const redact = require('../services/logRedact');
+const logContext = require('../services/logContext');
 const Connector = require('../models/Connector');
 const MetaConnection = require('../models/MetaConnection');
 const BotBackend = require('../models/BotBackend');
@@ -70,27 +71,32 @@ router.post('/:connectorId', async (req, res) => {
     const messages = extractMessages(req.body);
     for (const msg of messages) {
       if (isDuplicate(msg.messageId)) continue;
-      if (msg.type !== 'text') {
-        withPhoneLock(`${connector._id}:${msg.from}`, () =>
-          handleUnsupportedMessage(connector, msg).catch(err =>
-            console.error(`[Webhook] Error handling unsupported message for ${msg.from}:`, err.message)
-          )
-        );
-        continue;
-      }
-      sendTypingIndicator(connector.metaConnectionId, msg.messageId).catch(err =>
-        console.warn(`[Webhook] Typing indicator failed for ${msg.from}: ${err.message}`)
-      );
-      withPhoneLock(`${connector._id}:${msg.from}`, () =>
-        handleMessage(connector, msg).catch(err =>
-          console.error(`[Webhook] Unhandled error for ${msg.from}:`, err.message)
-        )
-      );
+      logContext.runForMessage(() => routeMessage(connector, msg));
     }
   } catch (err) {
     console.error('[Webhook] Error processing request:', err.message);
   }
 });
+
+// Runs inside the per-message log context (see services/logContext)
+function routeMessage(connector, msg) {
+  if (msg.type !== 'text') {
+    withPhoneLock(`${connector._id}:${msg.from}`, () =>
+      handleUnsupportedMessage(connector, msg).catch(err =>
+        console.error(`[Webhook] Error handling unsupported message for ${msg.from}:`, err.message)
+      )
+    );
+    return;
+  }
+  sendTypingIndicator(connector.metaConnectionId, msg.messageId).catch(err =>
+    console.warn(`[Webhook] Typing indicator failed for ${msg.from}: ${err.message}`)
+  );
+  withPhoneLock(`${connector._id}:${msg.from}`, () =>
+    handleMessage(connector, msg).catch(err =>
+      console.error(`[Webhook] Unhandled error for ${msg.from}:`, err.message)
+    )
+  );
+}
 
 const UNSUPPORTED_TYPE_LABELS = {
   image: 'תמונות',
@@ -370,6 +376,7 @@ async function processMessage(connector, { from, text, messageId }, options = {}
   if (!conversation) {
     conversation = await createNewConversation(connector, bot, from);
   }
+  logContext.setConversation(conversation);
 
   // DB-level dedup
   if (conversation.messages.some(m => m.whatsappMessageId === messageId)) {
@@ -399,6 +406,7 @@ async function processMessage(connector, { from, text, messageId }, options = {}
     await conversation.save();
 
     const newConv = await createNewConversation(connector, bot, from);
+    logContext.setConversation(newConv);
     if (bot.type === 'nivi') {
       await newConv.save();
       try {
