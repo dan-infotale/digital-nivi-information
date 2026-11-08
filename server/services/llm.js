@@ -7,6 +7,7 @@
 // and remember the adaptation per provider+model so later calls go right the first time.
 
 const OpenAI = require('openai');
+const redact = require('./logRedact');
 
 // `${baseUrl}|${model}` → { useMaxCompletionTokens, dropTemperature, effortIdx, dropReasoningEffort }
 const learned = new Map();
@@ -186,7 +187,7 @@ async function chatCompletion(provider, params, { client, reasoningEffort = LOWE
       }
       if (!changed) throw err;
       learned.set(key, l);
-      console.warn(`[LLM] ${model}: provider rejected "${bad}" — adapting and retrying (${JSON.stringify(l)})`);
+      console.warn(`[LLM] ${redact.model(model)}: provider rejected "${bad}" — adapting and retrying (${JSON.stringify(l)})`);
     }
   }
 }

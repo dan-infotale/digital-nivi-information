@@ -1,4 +1,5 @@
 require('dotenv').config({ path: '../.env' });
+require('./services/logRedact').install(); // before anything logs
 const path = require('path');
 const express = require('express');
 const cors = require('cors');
