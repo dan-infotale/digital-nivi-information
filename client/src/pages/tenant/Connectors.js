@@ -364,7 +364,7 @@ export default function Connectors() {
                     checked={!!form.translateWelcome}
                     onChange={e => setForm(f => ({ ...f, translateWelcome: e.target.checked }))}
                   />
-                  תרגם את הודעת הפתיחה לשפת המשתמש (ערבית, אנגלית, רוסית) באמצעות LLM
+                  תרגם את הודעת הפתיחה לשפת המשתמש באמצעות LLM
                 </label>
                 {form.translateWelcome && (
                   <label>ספק LLM לתרגום
