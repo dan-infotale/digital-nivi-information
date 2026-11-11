@@ -10,6 +10,7 @@ const EMPTY_FORM = {
   welcomeMessage: '', unsupportedMessage: '',
   autoCloseMinutes: 15, autoCloseMessage: '',
   suppressBotGreeting: false, greetingClassifierProvider: '',
+  translateWelcome: false, translateWelcomeProvider: '',
   rewriteEnabled: false, rewritePrompt: '', rewriteProvider: '',
   retention: { enabled: false, days: 90, deleteMode: 'full' },
 };
@@ -129,6 +130,8 @@ export default function Connectors() {
       autoCloseMessage: item.autoCloseMessage || '',
       suppressBotGreeting: !!item.suppressBotGreeting,
       greetingClassifierProvider: item.greetingClassifierProvider || '',
+      translateWelcome: !!item.translateWelcome,
+      translateWelcomeProvider: item.translateWelcomeProvider || '',
       rewriteEnabled: !!item.rewriteEnabled,
       rewritePrompt: item.rewritePrompt || '',
       rewriteProvider: item.rewriteProvider || '',
@@ -347,6 +350,27 @@ export default function Connectors() {
                     <select
                       value={form.greetingClassifierProvider}
                       onChange={e => setForm(f => ({ ...f, greetingClassifierProvider: e.target.value }))}
+                    >
+                      <option value="">ברירת מחדל (ראשון ברשימה)</option>
+                      {llmProviders.map(p => (
+                        <option key={p._id || p.name} value={p.name}>{p.name} ({p.model})</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={!!form.translateWelcome}
+                    onChange={e => setForm(f => ({ ...f, translateWelcome: e.target.checked }))}
+                  />
+                  תרגם את הודעת הפתיחה לשפת המשתמש (ערבית, אנגלית, רוסית) באמצעות LLM
+                </label>
+                {form.translateWelcome && (
+                  <label>ספק LLM לתרגום
+                    <select
+                      value={form.translateWelcomeProvider}
+                      onChange={e => setForm(f => ({ ...f, translateWelcomeProvider: e.target.value }))}
                     >
                       <option value="">ברירת מחדל (ראשון ברשימה)</option>
                       {llmProviders.map(p => (

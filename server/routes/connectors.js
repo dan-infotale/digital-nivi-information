@@ -16,7 +16,7 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { name, metaConnectionId, botBackendId, active, welcomeMessage, unsupportedMessage, autoCloseMinutes, autoCloseMessage, retention, suppressBotGreeting, greetingClassifierProvider, rewriteEnabled, rewritePrompt, rewriteProvider } = req.body;
+  const { name, metaConnectionId, botBackendId, active, welcomeMessage, unsupportedMessage, autoCloseMinutes, autoCloseMessage, retention, suppressBotGreeting, greetingClassifierProvider, translateWelcome, translateWelcomeProvider, rewriteEnabled, rewritePrompt, rewriteProvider } = req.body;
   if (!name || !metaConnectionId || !botBackendId) return res.status(400).json({ error: 'name, metaConnectionId and botBackendId required' });
   const tenantId = req.user.tenantId;
   const [meta, bot] = await Promise.all([
@@ -25,12 +25,12 @@ router.post('/', async (req, res) => {
   ]);
   if (!meta) return res.status(400).json({ error: 'Invalid META connection' });
   if (!bot) return res.status(400).json({ error: 'Invalid bot backend' });
-  const item = await Connector.create({ tenantId, name, metaConnectionId, botBackendId, active: active !== false, welcomeMessage, unsupportedMessage, autoCloseMinutes, autoCloseMessage, retention, suppressBotGreeting, greetingClassifierProvider, rewriteEnabled, rewritePrompt, rewriteProvider });
+  const item = await Connector.create({ tenantId, name, metaConnectionId, botBackendId, active: active !== false, welcomeMessage, unsupportedMessage, autoCloseMinutes, autoCloseMessage, retention, suppressBotGreeting, greetingClassifierProvider, translateWelcome, translateWelcomeProvider, rewriteEnabled, rewritePrompt, rewriteProvider });
   res.status(201).json(item);
 });
 
 router.put('/:id', async (req, res) => {
-  const { name, metaConnectionId, botBackendId, active, welcomeMessage, unsupportedMessage, autoCloseMinutes, autoCloseMessage, retention, suppressBotGreeting, greetingClassifierProvider, rewriteEnabled, rewritePrompt, rewriteProvider } = req.body;
+  const { name, metaConnectionId, botBackendId, active, welcomeMessage, unsupportedMessage, autoCloseMinutes, autoCloseMessage, retention, suppressBotGreeting, greetingClassifierProvider, translateWelcome, translateWelcomeProvider, rewriteEnabled, rewritePrompt, rewriteProvider } = req.body;
   const tenantId = req.user.tenantId;
   if (metaConnectionId !== undefined) {
     const meta = await MetaConnection.findOne({ _id: metaConnectionId, tenantId });
@@ -52,6 +52,8 @@ router.put('/:id', async (req, res) => {
   if (retention !== undefined) update.retention = retention;
   if (suppressBotGreeting !== undefined) update.suppressBotGreeting = suppressBotGreeting;
   if (greetingClassifierProvider !== undefined) update.greetingClassifierProvider = greetingClassifierProvider;
+  if (translateWelcome !== undefined) update.translateWelcome = translateWelcome;
+  if (translateWelcomeProvider !== undefined) update.translateWelcomeProvider = translateWelcomeProvider;
   if (rewriteEnabled !== undefined) update.rewriteEnabled = rewriteEnabled;
   if (rewritePrompt !== undefined) update.rewritePrompt = rewritePrompt;
   if (rewriteProvider !== undefined) update.rewriteProvider = rewriteProvider;

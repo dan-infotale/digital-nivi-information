@@ -2,6 +2,7 @@ const express = require('express');
 const { chatCompletion, isUsableProvider } = require('../services/llm');
 const redact = require('../services/logRedact');
 const logContext = require('../services/logContext');
+const { welcomeFor } = require('../services/welcomeTranslate');
 const Connector = require('../models/Connector');
 const MetaConnection = require('../models/MetaConnection');
 const BotBackend = require('../models/BotBackend');
@@ -419,10 +420,11 @@ async function processMessage(connector, { from, text, messageId }, options = {}
       }
     }
     if (connector.welcomeMessage) {
-      newConv.messages.push({ direction: 'outgoing', body: connector.welcomeMessage });
+      const welcome = await welcomeFor(connector, text);
+      newConv.messages.push({ direction: 'outgoing', body: welcome.text });
       newConv.lastActivity = new Date();
       await newConv.save();
-      await deliver(connector.welcomeMessage);
+      await deliver(welcome.text);
     }
     const confirmMsg = 'בוודאי! מתחילים שיחה חדשה. כיצד אוכל לעזור?';
     newConv.messages.push({ direction: 'outgoing', body: confirmMsg });
@@ -467,10 +469,11 @@ async function processMessage(connector, { from, text, messageId }, options = {}
   replyPromise.catch(() => {}); // handled below; avoid unhandled-rejection while welcome sends
 
   if (isNew && connector.welcomeMessage) {
-    conversation.messages.push({ direction: 'outgoing', body: connector.welcomeMessage });
+    const welcome = await welcomeFor(connector, text);
+    conversation.messages.push({ direction: 'outgoing', body: welcome.text });
     await conversation.save();
-    await deliver(connector.welcomeMessage, { more: true });
-    console.log(`[Timing] ${from} welcome sent at ${elapsed()}`);
+    await deliver(welcome.text, { more: true });
+    console.log(`[Timing] ${from} welcome sent at ${elapsed()} (lang=${welcome.lang}${welcome.translated ? ', translated' : ''})`);
   }
 
   try {

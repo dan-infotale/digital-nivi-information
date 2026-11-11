@@ -11,6 +11,8 @@ const schema = new mongoose.Schema({
   autoCloseMessage:   { type: String, default: '' },
   suppressBotGreeting:          { type: Boolean, default: false },
   greetingClassifierProvider:   { type: String, default: '' },
+  translateWelcome:             { type: Boolean, default: false },
+  translateWelcomeProvider:     { type: String, default: '' },
   rewriteEnabled:               { type: Boolean, default: false },
   rewritePrompt:                { type: String, default: '' },
   rewriteProvider:              { type: String, default: '' },
